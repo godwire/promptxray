@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "promptxray"
+version = "0.1.0"
+description = "Find out which line of your prompt is causing your classifier's errors."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Heorhii Tolstoukhov" }]
+keywords = ["llm", "eval", "prompt", "classifier", "ablation", "explainability"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/godwire/promptxray"
+Issues = "https://github.com/godwire/promptxray/issues"
+
+[project.scripts]
+promptxray = "promptxray.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/promptxray"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
