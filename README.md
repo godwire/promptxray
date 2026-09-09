@@ -113,6 +113,15 @@ broken 0
 
 `--fail-under` exits with code 1, so this works as a CI gate on prompt changes.
 
+## A harder example
+
+`examples/case-study/` holds a real one: 100 labelled messages from a game
+chat, three classes, and a fourteen-block moderation prompt written the way
+prompts actually get written. Two of its rules are overbroad on purpose. Run
+the ablation and see whether the tool finds them before you do.
+
+See [examples/case-study/RUNBOOK.md](examples/case-study/RUNBOOK.md).
+
 ## Writing a prompt file
 
 Plain text. Blocks are separated by blank lines.
@@ -149,20 +158,29 @@ Different column names: `--text-column message --label-column category`.
 
 ## Providers
 
-| `--provider` | Used for | Credentials |
-| --- | --- | --- |
-| `mock` | Trying the tool out, CI | none |
-| `openai` | OpenAI and anything OpenAI-compatible | `OPENAI_API_KEY` |
-| `ollama` | Local models, free | none |
-| `openrouter`, `groq` | Hosted, OpenAI-compatible | `OPENAI_API_KEY` + `--base-url` |
-| `anthropic` | Claude | `ANTHROPIC_API_KEY` |
+You never have to pay to use this tool. The first three cost nothing:
 
-Local run against Ollama, no cost at all:
+| `--provider` | What it is | Cost | Credentials |
+| --- | --- | --- | --- |
+| `mock` | Built-in fake classifier for the demo and CI | free | none |
+| `ollama` | Local models on your own machine | free | none |
+| `lmstudio` | Same, via LM Studio | free | none |
+| `openrouter` | Hosted; has free models (`:free` suffix) | free tier | `OPENROUTER_API_KEY` |
+| `groq` | Hosted, fast | free tier | `GROQ_API_KEY` |
+| `openai` | OpenAI and compatible servers | paid | `OPENAI_API_KEY` |
+| `anthropic` | Claude | paid | `ANTHROPIC_API_KEY` |
+
+The free path, start to finish — install [Ollama](https://ollama.com), then:
 
 ```bash
+ollama pull llama3.2
+
 promptxray ablate --prompt prompt.txt --data data.csv \
   --provider ollama --model llama3.2
 ```
+
+Nothing leaves your machine and nothing is billed. Any OpenAI-compatible server
+works via `--base-url`.
 
 ## What it costs
 

@@ -92,10 +92,33 @@ class OpenAICompatibleProvider(Provider):
 
     name = "openai"
 
-    def __init__(self, model: str, base_url: str | None = None, api_key: str | None = None, **kw):
+    # Every one of these speaks the same wire format, they just live at
+    # different addresses and read a different environment variable.
+    ENDPOINTS = {
+        "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY"),
+        "ollama": ("http://localhost:11434/v1", None),
+        "lmstudio": ("http://localhost:1234/v1", None),
+        "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+        "groq": ("https://api.groq.com/openai/v1", "GROQ_API_KEY"),
+    }
+
+    def __init__(self, model: str, base_url: str | None = None, api_key: str | None = None,
+                 flavour: str = "openai", **kw):
         super().__init__(model, **kw)
-        self.base_url = (base_url or os.getenv("PROMPTXRAY_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or "not-needed"
+        default_url, key_env = self.ENDPOINTS.get(flavour, self.ENDPOINTS["openai"])
+        self.base_url = (base_url or os.getenv("PROMPTXRAY_BASE_URL") or default_url).rstrip("/")
+        self.name = flavour
+        self.api_key = (
+            api_key
+            or (os.getenv(key_env) if key_env else None)
+            or os.getenv("OPENAI_API_KEY")
+            or "not-needed"  # local servers ignore it
+        )
+        if key_env and self.api_key == "not-needed":
+            raise ProviderError(
+                f"Set {key_env} before using --provider {flavour}. "
+                "For a run that costs nothing, use --provider ollama instead."
+            )
 
     def complete(self, prompt: str) -> Answer:
         payload = {
@@ -180,10 +203,9 @@ def build(provider: str, model: str, base_url: str | None = None) -> Provider:
     provider = provider.lower()
     if provider == "mock":
         return MockProvider(model or "mock-classifier")
-    if provider in {"openai", "ollama", "openrouter", "groq", "local"}:
-        if provider == "ollama" and not base_url:
-            base_url = "http://localhost:11434/v1"
-        return OpenAICompatibleProvider(model, base_url=base_url)
+    if provider in OpenAICompatibleProvider.ENDPOINTS or provider == "local":
+        flavour = "openai" if provider == "local" else provider
+        return OpenAICompatibleProvider(model, base_url=base_url, flavour=flavour)
     if provider == "anthropic":
         return AnthropicProvider(model)
     raise ProviderError(f"Unknown provider: {provider}")
