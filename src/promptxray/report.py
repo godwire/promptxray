@@ -246,9 +246,6 @@ def render_report(
 
     # --- hero: the prompt, block by block --------------------------------
     if ablation:
-        effects = {e.block.index: e for e in ablation.effects}
-        widest = max([abs(e.contribution) for e in ablation.effects] + [0.001])
-
         parts.append("<h2>What each block of the prompt does</h2>")
         parts.append(
             '<p class="note">This is your prompt. Each block was removed on its own and '

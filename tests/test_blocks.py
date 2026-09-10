@@ -1,3 +1,4 @@
+from promptxray.blocks import Block
 from promptxray import blocks as b
 
 
@@ -40,3 +41,26 @@ def test_validate_rejects_prompt_without_input():
         assert "{input}" in str(exc)
     else:
         raise AssertionError("validate should have raised")
+
+
+def test_validate_rejects_empty_prompt():
+    try:
+        b.validate([])
+    except ValueError as exc:
+        assert "empty" in str(exc)
+    else:
+        raise AssertionError("validate should have raised")
+
+
+def test_preview_flattens_whitespace_and_truncates():
+    long_block = Block(index=0, text="word " * 60, pinned=False)
+    preview = long_block.preview
+    assert len(preview) <= 90
+    assert "\n" not in preview  # single line
+    assert preview.endswith("...")
+    assert Block(index=0, text="short", pinned=False).preview == "short"
+
+
+def test_parse_blocks_strips_blank_lines_between_blocks():
+    parsed = b.parse_blocks("one\n\n\n\n\n  \ntwo")
+    assert [p.text for p in parsed] == ["one", "two"]

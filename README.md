@@ -113,6 +113,24 @@ broken 0
 
 `--fail-under` exits with code 1, so this works as a CI gate on prompt changes.
 
+### `cache` — inspect or wipe the disk cache
+
+Answer reuse lives in `.promptxray-cache.sqlite` in the current directory. See
+what is stored, or start clean:
+
+```bash
+promptxray cache
+promptxray cache --clear
+```
+
+Point any command at a different cache file (useful for per-project or per-CI-job
+stores) with `--cache-path`:
+
+```bash
+promptxray ablate --prompt prompt.txt --data data.csv \
+  --provider mock --cache-path /tmp/shared-cache.sqlite
+```
+
 ## A harder example
 
 `examples/case-study/` holds a real one: 100 labelled messages from a game

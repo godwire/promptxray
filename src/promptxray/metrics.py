@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 UNPARSED = "<unparsed>"
@@ -58,13 +59,24 @@ def normalise(raw: str, labels: list[str]) -> str:
     Models add punctuation, quotes, or a whole sentence. An answer that still
     cannot be matched is counted as <unparsed> rather than silently dropped -
     an unusable output is a real failure of the prompt.
+
+    Substring matching is word-boundary aware, so a label like ``cat`` never
+    matches inside a longer word such as ``concatenate``. When several labels
+    appear, the longest wins, so ``not urgent`` beats ``urgent``.
     """
-    cleaned = raw.strip().strip(".,:;!\"'`").lower()
+    cleaned = raw.strip().strip(".,:;!\"'`")
+    lowered = cleaned.lower()
+
+    # Whole-answer match is the most reliable signal.
     for label in labels:
-        if cleaned == label.lower():
+        if cleaned.lower() == label.lower():
             return label
-    for label in labels:
-        if label.lower() in cleaned:
+
+    # Word-boundary substring match. Sort longest-first so more specific
+    # labels ("not urgent") win over their substrings ("urgent").
+    ordered = sorted({label for label in labels}, key=len, reverse=True)
+    for label in ordered:
+        if re.search(rf"(?<![a-z0-9]){re.escape(label.lower())}(?![a-z0-9])", lowered):
             return label
     return UNPARSED
 

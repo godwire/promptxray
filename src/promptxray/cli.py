@@ -11,7 +11,7 @@ from . import __version__
 from . import blocks as blocks_mod
 from . import dataset as dataset_mod
 from .ablation import ablate
-from .cache import Cache
+from .cache import DEFAULT_PATH, Cache
 from .metrics import score
 from .providers import ProviderError, build
 from .report import render_report
@@ -30,8 +30,14 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--limit", type=int, default=0, help="use only the first N examples")
     parser.add_argument("--workers", type=int, default=4, help="parallel requests")
     parser.add_argument("--no-cache", action="store_true", help="ignore the on-disk cache")
+    parser.add_argument("--cache-path", default=None, help="SQLite cache file (default: .promptxray-cache.sqlite)")
     parser.add_argument("--report", default=None, help="where to write the HTML report")
     parser.add_argument("--json", dest="json_out", default=None, help="also write raw results as JSON")
+
+
+def _make_cache(args) -> Cache:
+    return Cache(path=DEFAULT_PATH if args.cache_path is None else args.cache_path,
+                 enabled=not args.no_cache)
 
 
 def _load(args) -> tuple[str, list, list[str]]:
@@ -48,7 +54,7 @@ def cmd_run(args) -> int:
     blocks_mod.validate(blocks)
 
     provider = build(args.provider, args.model, args.base_url)
-    cache = Cache(enabled=not args.no_cache)
+    cache = _make_cache(args)
     try:
         result = run(blocks_mod.render(blocks), examples, labels, provider, cache,
                      workers=args.workers, progress_label="scoring")
@@ -73,7 +79,7 @@ def cmd_ablate(args) -> int:
     blocks_mod.validate(blocks)
 
     provider = build(args.provider, args.model, args.base_url)
-    cache = Cache(enabled=not args.no_cache)
+    cache = _make_cache(args)
     try:
         baseline = run(blocks_mod.render(blocks), examples, labels, provider, cache,
                        workers=args.workers, progress_label="baseline")
@@ -108,7 +114,7 @@ def cmd_diff(args) -> int:
     gold = {e.id: e.label for e in examples}
 
     provider = build(args.provider, args.model, args.base_url)
-    cache = Cache(enabled=not args.no_cache)
+    cache = _make_cache(args)
     try:
         results = []
         for path in (args.before, args.after):
@@ -148,6 +154,25 @@ def cmd_diff(args) -> int:
         print(f"\nmacro F1 {after_score.macro_f1:.3f} is below --fail-under {args.fail_under}")
         return 1
     return 0
+
+
+def cmd_cache(args) -> int:
+    """Show cache stats or wipe the on-disk cache."""
+    cache = Cache(path=DEFAULT_PATH if args.cache_path is None else args.cache_path,
+                  enabled=True)
+    try:
+        if args.clear:
+            removed = cache.clear()
+            print(f"cleared {removed} cached answer(s) from {cache.path}")
+            return 0
+        stats = cache.stats
+        print(f"cache      {cache.path}")
+        print(f"entries    {stats['entries']}")
+        print(f"hits       {stats['hits']}")
+        print(f"misses     {stats['misses']}")
+        return 0
+    finally:
+        cache.close()
 
 
 def _write_report(args, prompt_text, examples, labels, provider, result, result_score, ablation) -> None:
@@ -224,6 +249,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="exit with code 1 if the new prompt scores below this macro F1")
     _add_common(p_diff)
     p_diff.set_defaults(func=cmd_diff)
+
+    p_cache = sub.add_parser("cache", help="show or wipe the on-disk model-answer cache")
+    p_cache.add_argument("--cache-path", default=None,
+                         help="SQLite cache file (default: .promptxray-cache.sqlite)")
+    p_cache.add_argument("--clear", action="store_true",
+                         help="delete every cached answer")
+    p_cache.set_defaults(func=cmd_cache)
 
     args = parser.parse_args(argv)
     try:
