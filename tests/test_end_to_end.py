@@ -65,3 +65,45 @@ def test_cli_writes_a_report(tmp_path):
     html = out.read_text(encoding="utf-8")
     assert "What each block of the prompt does" in html
     assert "Confusion matrix" in html
+
+
+def test_cli_run_accepts_custom_cache_path(tmp_path):
+    cache_path = tmp_path / "custom.sqlite"
+    code = main([
+        "run", "--prompt", str(PROMPT), "--data", str(DATA),
+        "--provider", "mock", "--cache-path", str(cache_path),
+    ])
+    assert code == 0
+    assert cache_path.exists()
+
+
+def test_cli_run_reuses_cache_across_two_calls(tmp_path):
+    cache_path = tmp_path / "shared.sqlite"
+    first = main([
+        "run", "--prompt", str(PROMPT), "--data", str(DATA),
+        "--provider", "mock", "--cache-path", str(cache_path),
+    ])
+    second = main([
+        "run", "--prompt", str(PROMPT), "--data", str(DATA),
+        "--provider", "mock", "--cache-path", str(cache_path),
+    ])
+    assert first == second == 0
+
+
+def test_cli_cache_subcommand_reports_then_clears(tmp_path, capsys):
+    cache_path = tmp_path / "c.sqlite"
+    assert main(["run", "--prompt", str(PROMPT), "--data", str(DATA),
+                 "--provider", "mock", "--cache-path", str(cache_path)]) == 0
+
+    assert main(["cache", "--cache-path", str(cache_path)]) == 0
+    out = capsys.readouterr().out
+    assert "entries" in out
+    assert "cache" in out
+
+    assert main(["cache", "--cache-path", str(cache_path), "--clear"]) == 0
+    out = capsys.readouterr().out
+    assert "cleared" in out
+    # after clearing, a follow-up cache report shows zero entries
+    assert main(["cache", "--cache-path", str(cache_path)]) == 0
+    final = capsys.readouterr().out
+    assert "entries    0" in final

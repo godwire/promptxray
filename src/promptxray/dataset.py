@@ -51,6 +51,12 @@ def load(path: str | Path, text_column: str = "text", label_column: str = "label
         label = (row.get(label_column) or "").strip()
         if text and label:
             examples.append(Example(id=i, text=text, label=label))
+
+    if not examples:
+        raise ValueError(
+            f"Dataset {path} has no usable rows: every row is missing a non-empty "
+            f"{text_column!r} or {label_column!r} value."
+        )
     return examples
 
 

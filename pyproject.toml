@@ -21,7 +21,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "ruff>=0.5"]
 
 [project.urls]
 Homepage = "https://github.com/godwire/promptxray"
@@ -36,3 +36,12 @@ packages = ["src/promptxray"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["F", "E9"]  # bug-catching only; single-line E501/style noise is pre-existing
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F811"]  # allow deliberate name reuse in test helpers
