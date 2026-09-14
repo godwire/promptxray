@@ -172,6 +172,7 @@ You never have to pay to use this tool. The first three cost nothing:
 
 The free path, start to finish — install [Ollama](https://ollama.com), then:
 
+
 ```bash
 ollama pull llama3.2
 
