@@ -138,7 +138,6 @@ Answer with the single label and nothing else. [[keep]]
 Text: {input}
 ```
 
-
 - `{input}` is where each row of your dataset goes. Required.
 - `[[keep]]` pins a block so it is never removed. Use it on the output-format
   instruction: deleting that one does not test an idea, it just breaks parsing
