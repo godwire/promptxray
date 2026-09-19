@@ -1,5 +1,10 @@
 # promptxray
 
+[![tests](https://github.com/godwire/promptxray/actions/workflows/ci.yml/badge.svg)](https://github.com/godwire/promptxray/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/promptxray.svg)](https://pypi.org/project/promptxray/)
+[![Python](https://img.shields.io/pypi/pyversions/promptxray.svg)](https://pypi.org/project/promptxray/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Find out which line of your prompt is causing your classifier's errors.
 
 Every eval tool tells you your prompt scores 0.83. None of them tell you *which
@@ -12,6 +17,9 @@ The report is your prompt, coloured block by block. Blue means the score drops
 without that block. Amber means the score goes *up* without it. Hover any block
 and it tells you why it got that colour, which examples flipped, and what to do
 about it.
+
+**[Open the live demo report](https://godwire.github.io/promptxray/)** and hover
+the blocks yourself.
 
 ## The 30-second version
 
@@ -30,14 +38,13 @@ promptxray ablate \
 
 ```
 baseline macro F1 0.836 on 43 examples
-ablation subset   43 examples
 
-  #3   -0.125  carries its weight   Treat ALL-CAPS messages as urgent, because customers...
-  #1   +0.000  no effect            You are a message triage assistant for a customer...
-  #2   +0.000  no effect            Classify the message into exactly one of: spam, urgent...
-  #5   +0.000  no effect            Be thorough and think carefully about the context...
-  #6   +0.000  no effect            Remember that accuracy matters a lot to our team...
-  #4   +0.096  hurts the score      Ignore promotional wording in quotes - people often...
+  #3   -0.125  90% CI [-0.222, -0.051]  carries its weight   Treat ALL-CAPS messages as...
+  #1   +0.000  90% CI [+0.000, +0.000]  no effect            You are a message triage...
+  #2   +0.000  90% CI [+0.000, +0.000]  no effect            Classify the message into...
+  #5   +0.000  90% CI [+0.000, +0.000]  no effect            Be thorough and think...
+  #6   +0.000  90% CI [+0.000, +0.000]  no effect            Remember that accuracy...
+  #4   +0.096  90% CI [+0.025, +0.185]  hurts the score      Ignore promotional wording...
 
 4 of 6 tested blocks changed nothing at all.
 ```
@@ -57,6 +64,12 @@ of your prompt.
 3. Each block is removed on its own and the prompt is re-run.
 4. The change in macro F1, and the individual examples that flipped, are
    attributed to that block.
+
+Every delta comes with a 90% confidence interval, produced by resampling the
+tested examples. When that interval crosses zero the tool says so instead of
+guessing: a block is only called useful or harmful when the sign survives
+resampling. This is the difference between a measurement and a coin flip on a
+small dataset.
 
 Two things keep this affordable:
 
@@ -87,6 +100,54 @@ promptxray ablate --prompt prompt.txt --data data.csv \
   --subset-size 60 --report report.html
 ```
 
+### `suggest` — find the smallest prompt that does the same job
+
+```bash
+promptxray suggest --prompt prompt.txt --data data.csv \
+  --provider ollama --model llama3.2 --holdout 0.3 --price-per-mtok 0.15
+```
+
+```
+blocks judged on 30 training examples, result measured on 13 held-out examples
+
+removed 5 of 8 blocks, one at a time:
+   1. #4   was costing +0.101 F1     Ignore promotional wording in quotes - peo...
+   2. #5   no measurable effect      Be thorough and think carefully about the...
+   3. #6   no measurable effect      Remember that accuracy matters a lot to ou...
+   4. #1   no measurable effect      You are a message triage assistant for a c...
+   5. #2   no measurable effect      Classify the message into exactly one of:...
+
+original  macro F1 0.764
+suggested macro F1 0.849 (+0.085) on the holdout
+fixed 1, broken 0
+
+prompt tokens per call  144 -> 47  (67% less)
+per million calls       97M fewer input tokens
+                        $14.49 saved at $0.15/1M input tokens
+```
+
+Three things make this trustworthy rather than just short:
+
+**It removes one block at a time.** Leave-one-out ablation has a blind spot:
+when two blocks say the same thing, removing either one alone changes nothing,
+so both look useless — and cutting both at once breaks the prompt. `suggest`
+drops the weakest block, re-measures what is left, and repeats. The moment a
+block starts to matter because its twin is gone, it stays, and the pair is
+named in the output. `--strategy one-shot` skips this for a cheaper run.
+
+**It grades on data it did not choose with.** Blocks are judged on the
+training part of your dataset; the final prompt is scored on a holdout the
+selection never saw. If the shorter prompt loses score there, nothing is
+written.
+
+**It keeps what it cannot judge.** A block whose confidence interval crosses
+zero is kept. Unproven is not the same as useless — gather more examples if you
+want a verdict on it.
+
+The saving is measured, not guessed: token counts come from what the provider
+reports for each call. When a provider reports nothing, the figure is marked
+`~` and estimated at four characters per token.
+
 ### `diff` — compare two prompt versions, example by example
 
 Aggregate metrics hide the trade. This shows you exactly what you gained and
@@ -113,6 +174,40 @@ broken 0
 
 `--fail-under` exits with code 1, so this works as a CI gate on prompt changes.
 
+## In CI: the GitHub Action
+
+Block a pull request when a prompt change makes the classifier worse. Free,
+with no API key: the action installs Ollama on the runner and runs an open
+model there.
+
+```yaml
+# .github/workflows/prompt-check.yml
+name: prompt check
+on: pull_request
+
+jobs:
+  promptxray:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git show origin/${{ github.base_ref }}:prompts/triage.txt > /tmp/before.txt
+      - uses: godwire/promptxray@v0.3.0
+        with:
+          command: diff
+          before: /tmp/before.txt
+          prompt: prompts/triage.txt
+          data: tests/labelled.csv
+          provider: ollama
+          model: qwen2.5:1.5b
+          fail-under: "0.80"
+```
+
+The fixed and broken examples land in the job summary. With `command: ablate`
+the HTML report is attached to the run as a downloadable artifact. Hosted
+providers work too: pass the key through `env:` from your repository secrets.
+
 ## A harder example
 
 `examples/case-study/` holds a real one: 100 labelled messages from a game
@@ -121,6 +216,10 @@ prompts actually get written. Two of its rules are overbroad on purpose. Run
 the ablation and see whether the tool finds them before you do.
 
 See [examples/case-study/RUNBOOK.md](examples/case-study/RUNBOOK.md).
+
+No local setup at all: fork the repository, open **Actions → real model → Run
+workflow**, and GitHub runs the case study against an open model on its own
+machines. The report is attached to the run.
 
 ## Writing a prompt file
 
@@ -184,9 +283,17 @@ works via `--base-url`.
 
 ## What it costs
 
-Roughly `dataset_size + (unpinned_blocks × subset_size)` calls on the first
-run. A 200-row dataset with 10 unpinned blocks and `--subset-size 60` is 800
-calls — a few cents on a small model, and the cache makes every repeat free.
+Nothing, if you run a local model. The number of calls still decides how long
+you wait:
+
+| command | calls on the first run |
+| --- | --- |
+| `ablate` | `dataset + blocks × subset` — 200 rows, 10 blocks, subset 60 is 800 |
+| `suggest --strategy one-shot` | about the same as `ablate` |
+| `suggest` (greedy) | up to `blocks² / 2 × subset`; printed before the run starts |
+
+Every answer is cached under a hash of the exact prompt and model, so a second
+run of anything costs zero calls.
 
 ## What this is not
 
@@ -206,10 +313,12 @@ git clone https://github.com/godwire/promptxray
 cd promptxray
 pip install -e ".[dev]"
 pytest
+ruff check src tests
 ```
 
 The test suite runs entirely on the mock provider, so it needs no network and
-no API key.
+no API key. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull
+request.
 
 ## License
 
