@@ -1,0 +1,24 @@
+name: publish
+
+# Publishes to PyPI when you push a version tag, e.g. `git tag v0.2.0 && git push --tags`.
+# Set up trusted publishing once at https://pypi.org/manage/account/publishing/
+# so no API token has to live in the repository secrets.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

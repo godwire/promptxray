@@ -1,0 +1,39 @@
+name: real model
+
+# A free run against a real open model, on GitHub's own machines.
+# Start it by hand: Actions tab -> "real model" -> Run workflow.
+# Ollama is installed on the runner, the model is downloaded, and the HTML
+# report is attached to the run as an artifact you can download.
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Ollama model (smaller is faster on a CPU runner)"
+        default: "qwen2.5:1.5b"
+      prompt:
+        description: Prompt file
+        default: examples/case-study/prompt-v1.txt
+      data:
+        description: Labelled data
+        default: examples/case-study/chat-moderation.csv
+      subset-size:
+        description: Examples per ablated run
+        default: "40"
+
+jobs:
+  ablate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          command: ablate
+          provider: ollama
+          model: ${{ inputs.model }}
+          prompt: ${{ inputs.prompt }}
+          data: ${{ inputs.data }}
+          subset-size: ${{ inputs.subset-size }}
+          workers: "2"
+          report: case-study-report.html

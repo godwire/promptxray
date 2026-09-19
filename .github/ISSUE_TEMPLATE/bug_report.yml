@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work as described.
+labels: [bug]
+body:
+  - type: textarea
+    id: command
+    attributes:
+      label: Command you ran
+      render: shell
+      placeholder: promptxray ablate --prompt prompt.txt --data data.csv --provider ollama --model llama3.2
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output
+      description: Paste everything the command printed, including any traceback.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: "promptxray 0.3.0, Python 3.12, Windows 11"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options: [mock, ollama, lmstudio, openrouter, groq, openai, anthropic, other]
+    validations:
+      required: true

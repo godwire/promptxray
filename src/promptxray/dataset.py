@@ -84,3 +84,29 @@ def error_enriched_subset(
         rng.shuffle(right)
         chosen += right[:remaining]
     return sorted(chosen, key=lambda e: e.id)
+
+
+def stratified_split(
+    examples: list[Example], holdout_ratio: float = 0.5, seed: int = 0
+) -> tuple[list[Example], list[Example]]:
+    """Split into (train, holdout), keeping the class balance in both halves.
+
+    `suggest` needs this: choosing which blocks to drop and then measuring the
+    result on the same examples would flatter the answer every time.
+    """
+    rng = random.Random(seed)
+    by_label: dict[str, list[Example]] = {}
+    for example in examples:
+        by_label.setdefault(example.label, []).append(example)
+
+    train: list[Example] = []
+    holdout: list[Example] = []
+    for label in sorted(by_label):
+        group = list(by_label[label])
+        rng.shuffle(group)
+        cut = int(round(len(group) * (1 - holdout_ratio)))
+        cut = min(max(cut, 1), len(group) - 1) if len(group) > 1 else len(group)
+        train += group[:cut]
+        holdout += group[cut:]
+
+    return sorted(train, key=lambda e: e.id), sorted(holdout, key=lambda e: e.id)

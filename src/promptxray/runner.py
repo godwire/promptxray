@@ -26,8 +26,17 @@ class RunResult:
     raw: dict[int, str] = field(default_factory=dict)
     api_calls: int = 0
     cache_hits: int = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
+    input_tokens: int = 0   # billed: uncached calls only
+    output_tokens: int = 0  # billed: uncached calls only
+    # Every answer, cached or not. Used to compare how heavy two prompts are,
+    # which must not depend on what happened to be in the cache.
+    answered: int = 0
+    seen_input_tokens: int = 0
+
+    @property
+    def avg_input_tokens(self) -> float:
+        """Average prompt tokens per call as reported by the provider, 0 if unknown."""
+        return self.seen_input_tokens / self.answered if self.answered else 0.0
 
     def cost_usd(self, model: str) -> float | None:
         price = None
@@ -67,6 +76,8 @@ def run(
         for example, text, was_cached, in_tokens, out_tokens in pool.map(ask, examples):
             result.raw[example.id] = text
             result.predictions[example.id] = normalise(text, labels)
+            result.answered += 1
+            result.seen_input_tokens += in_tokens
             if was_cached:
                 result.cache_hits += 1
             else:
@@ -81,3 +92,20 @@ def run(
     if progress_label and sys.stderr.isatty():
         print("", file=sys.stderr)
     return result
+
+
+def tokens_per_call(
+    result: RunResult, template: str, examples: list[Example]
+) -> tuple[float, bool]:
+    """Prompt tokens per call, and whether the number is an estimate.
+
+    Providers that report usage give the real count. Local servers sometimes
+    report nothing; then the fallback is about four characters per token, and the
+    caller is told so it can label the figure as approximate.
+    """
+    if result.avg_input_tokens > 0:
+        return result.avg_input_tokens, False
+    if not examples:
+        return 0.0, True
+    average_text = sum(len(e.text) for e in examples) / len(examples)
+    return (len(template) - len("{input}") + average_text) / 4, True

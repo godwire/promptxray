@@ -16,6 +16,7 @@ from .metrics import score
 from .providers import ProviderError, build
 from .report import render_report
 from .runner import run
+from .suggest import estimate_calls, suggest
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
@@ -31,7 +32,8 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--workers", type=int, default=4, help="parallel requests")
     parser.add_argument("--no-cache", action="store_true", help="ignore the on-disk cache")
     parser.add_argument("--report", default=None, help="where to write the HTML report")
-    parser.add_argument("--json", dest="json_out", default=None, help="also write raw results as JSON")
+    parser.add_argument("--json", dest="json_out", default=None,
+                        help="also write raw results as JSON")
 
 
 def _load(args) -> tuple[str, list, list[str]]:
@@ -81,7 +83,8 @@ def cmd_ablate(args) -> int:
         baseline_score = score(gold, baseline.predictions, labels)
 
         report = ablate(blocks, examples, labels, provider, cache, baseline, baseline_score,
-                        subset_size=args.subset_size, workers=args.workers, seed=args.seed)
+                        subset_size=args.subset_size, workers=args.workers, seed=args.seed,
+                        resamples=args.bootstrap)
     finally:
         cache.close()
 
@@ -91,10 +94,15 @@ def cmd_ablate(args) -> int:
                     key=lambda e: e.contribution, reverse=True)
     for effect in ranked:
         print(f"  #{effect.block.index + 1:<3} {effect.delta_macro_f1:+.3f}  "
-              f"{effect.verdict:<20} {effect.block.preview[:60]}")
-    dead = [e for e in ranked if not e.fixed and not e.broken]
+              f"{effect.ci_text:<26} {effect.verdict:<20} "
+              f"{effect.block.preview[:44]}")
+    dead = [e for e in ranked if e.verdict == "no effect"]
+    noisy = [e for e in ranked if e.verdict == "too noisy to call"]
     if dead:
         print(f"\n{len(dead)} of {len(ranked)} tested blocks changed nothing at all.")
+    if noisy:
+        print(f"{len(noisy)} block(s) came out too noisy to judge - raise --subset-size "
+              "before trusting them either way.")
 
     _write_report(args, prompt_text, examples, labels, provider, baseline, baseline_score, report)
     return 0
@@ -150,7 +158,90 @@ def cmd_diff(args) -> int:
     return 0
 
 
-def _write_report(args, prompt_text, examples, labels, provider, result, result_score, ablation) -> None:
+def cmd_suggest(args) -> int:
+    prompt_text, examples, labels = _load(args)
+    blocks = blocks_mod.parse_blocks(prompt_text)
+    blocks_mod.validate(blocks)
+
+    provider = build(args.provider, args.model, args.base_url)
+
+    holdout_size = round(len(examples) * args.holdout)
+    evaluation_size = min(args.subset_size or len(examples), len(examples) - holdout_size)
+    worst_case = estimate_calls(blocks, evaluation_size, holdout_size, args.strategy,
+                                train_size=len(examples) - holdout_size)
+    print(f"strategy {args.strategy}: at most ~{worst_case} model calls "
+          "(answers already in the cache cost nothing)")
+
+    cache = Cache(enabled=not args.no_cache)
+    try:
+        result = suggest(blocks, examples, labels, provider, cache,
+                         subset_size=args.subset_size, holdout_ratio=args.holdout,
+                         workers=args.workers, seed=args.seed, resamples=args.bootstrap,
+                         strategy=args.strategy, max_steps=args.max_steps)
+    finally:
+        cache.close()
+
+    if not result.dropped:
+        print("\nEvery block in this prompt is either useful or unproven. Nothing to cut.")
+        return 0
+
+    print(f"\nblocks judged on {result.eval_size} training examples, "
+          f"result measured on {result.holdout_size} held-out examples\n")
+
+    if result.strategy == "greedy":
+        print(f"removed {len(result.steps)} of {len(blocks)} blocks, one at a time:")
+        for step in result.steps:
+            print(f"  {step.number:>2}. #{step.removed.index + 1:<3} "
+                  f"{_describe(step.effect):<30} {step.removed.preview[:42]}")
+    else:
+        print(f"dropping {len(result.dropped)} of {len(blocks)} blocks:")
+        for block, reason in result.dropped:
+            print(f"  - #{block.index + 1:<3} {reason:<30} {block.preview[:42]}")
+
+    for pair in result.redundancies:
+        print(f"\n  note: #{pair.block.index + 1} looked useless on its own, but started "
+              f"carrying its weight once #{pair.twin.index + 1} was gone.")
+        print("        They were doing the same job. One of them is enough - "
+              "the greedy search kept one.")
+
+    print(f"\noriginal  macro F1 {result.before_macro_f1:.3f}")
+    print(f"suggested macro F1 {result.after_macro_f1:.3f} ({result.delta:+.3f}) on the holdout")
+    print(f"fixed {len(result.fixed)}, broken {len(result.broken)}")
+
+    econ = result.economics
+    approx = "~" if econ.estimated else ""
+    print(f"\nprompt tokens per call  {approx}{econ.tokens_before:.0f} -> "
+          f"{approx}{econ.tokens_after:.0f}  ({econ.saved_share:.0%} less)")
+    print(f"per million calls       {approx}{econ.saved_per_call:.0f}M fewer input tokens")
+    if args.price_per_mtok:
+        dollars = econ.dollars_per_million_calls(args.price_per_mtok)
+        print(f"                        {approx}${dollars:,.2f} saved "
+              f"at ${args.price_per_mtok}/1M input tokens")
+    if econ.estimated:
+        print("                        (~ estimated at 4 characters per token: "
+              "the provider did not report usage)")
+    print(f"model calls made        {result.api_calls}")
+
+    if result.worth_it:
+        Path(args.out).write_text(result.prompt_text + "\n", encoding="utf-8")
+        print(f"\nwritten to {args.out}")
+        print("Read it before you ship it - a shorter prompt that scores the same on this "
+              "dataset can still behave differently on inputs the dataset does not cover.")
+    else:
+        print("\nNot written: the shorter prompt loses score on the holdout. "
+              "Raise --subset-size and try again, or keep the prompt as it is.")
+    return 0
+
+
+def _describe(effect) -> str:
+    if effect.verdict == "hurts the score":
+        return f"was costing {effect.delta_macro_f1:+.3f} F1"
+    return "no measurable effect"
+
+
+def _write_report(
+    args, prompt_text, examples, labels, provider, result, result_score, ablation
+) -> None:
     if args.report:
         html = render_report(
             prompt_path=args.prompt,
@@ -214,8 +305,30 @@ def main(argv: list[str] | None = None) -> int:
     p_ablate.add_argument("--subset-size", type=int, default=60,
                           help="how many examples each ablated run uses")
     p_ablate.add_argument("--seed", type=int, default=0)
+    p_ablate.add_argument("--bootstrap", type=int, default=400,
+                          help="resamples used for the confidence interval (0 disables)")
     _add_common(p_ablate)
     p_ablate.set_defaults(func=cmd_ablate)
+
+    p_suggest = sub.add_parser(
+        "suggest", help="propose a shorter prompt and verify it on held-out examples")
+    p_suggest.add_argument("--prompt", required=True)
+    p_suggest.add_argument("--out", default="prompt-suggested.txt")
+    p_suggest.add_argument("--subset-size", type=int, default=60)
+    p_suggest.add_argument("--holdout", type=float, default=0.5,
+                           help="share of the dataset kept out of block selection")
+    p_suggest.add_argument("--seed", type=int, default=0)
+    p_suggest.add_argument("--bootstrap", type=int, default=400)
+    p_suggest.add_argument("--strategy", choices=["greedy", "one-shot"], default="greedy",
+                           help="greedy re-measures after every removal and catches "
+                                "redundant blocks; one-shot is cheaper")
+    p_suggest.add_argument("--max-steps", type=int, default=0,
+                           help="stop the greedy search after this many removals (0 = no limit)")
+    p_suggest.add_argument("--price-per-mtok", type=float, default=0.0,
+                           help="your model's input price in USD per 1M tokens, "
+                                "to show the saving in money")
+    _add_common(p_suggest)
+    p_suggest.set_defaults(func=cmd_suggest)
 
     p_diff = sub.add_parser("diff", help="compare two prompt versions example by example")
     p_diff.add_argument("--before", required=True)

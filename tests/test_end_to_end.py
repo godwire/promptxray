@@ -25,7 +25,8 @@ def _baseline():
     cache = Cache(enabled=False)
     result = run(blocks_mod.render(blocks), examples, labels, provider, cache, workers=2)
     gold = {e.id: e.label for e in examples}
-    return blocks, examples, labels, provider, cache, result, score(gold, result.predictions, labels)
+    result_score = score(gold, result.predictions, labels)
+    return blocks, examples, labels, provider, cache, result, result_score
 
 
 def test_baseline_scores_the_example_dataset():

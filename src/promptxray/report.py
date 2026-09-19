@@ -58,7 +58,10 @@ h2 { font-size: 15px; margin: 44px 0 12px; font-weight: 600;
   vertical-align: -1px; margin-right: 7px; }
 .sw-helps { background: rgba(27,77,143,.20); border-left: 3px solid var(--helps); }
 .sw-hurts { background: rgba(180,105,14,.20); border-left: 3px solid var(--hurts); }
-.sw-flat  { background: transparent; border-left: 3px solid var(--flat); }
+.sw-flat  { background: rgba(152,162,176,.10); border-left: 3px solid var(--flat); }
+.sw-noisy { border-left: 3px solid var(--muted);
+            background: repeating-linear-gradient(135deg, rgba(107,119,135,.30) 0 3px,
+                                                  transparent 3px 6px); }
 
 .prompt { background: var(--card); border: 1px solid var(--rule); border-radius: 3px;
   padding: 20px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -71,6 +74,9 @@ h2 { font-size: 15px; margin: 44px 0 12px; font-weight: 600;
 .blk.helps { background: rgba(27,77,143,.10); border-left-color: var(--helps); }
 .blk.hurts { background: rgba(180,105,14,.12); border-left-color: var(--hurts); }
 .blk.flat  { border-left-color: var(--flat); border-left-style: dotted; }
+.blk.noisy { border-left-color: var(--muted);
+             background: repeating-linear-gradient(135deg, rgba(107,119,135,.09) 0 6px,
+                                                   transparent 6px 12px); }
 .blk.kept  { border-left-color: var(--rule); color: var(--muted); }
 .blk:hover, .blk:focus-visible { background: rgba(22,32,46,.06); }
 .blk:focus-visible { outline: 2px solid var(--helps); outline-offset: 2px; }
@@ -129,11 +135,14 @@ def _fmt_delta(value: float) -> str:
 
 
 def _kind(effect) -> str:
-    """helps / hurts / flat, from the measured contribution."""
-    if effect.contribution > 0.005:
+    """Colour class, driven by the verdict rather than the raw number."""
+    verdict = effect.verdict
+    if verdict == "carries its weight":
         return "helps"
-    if effect.contribution < -0.005:
+    if verdict == "hurts the score":
         return "hurts"
+    if verdict == "too noisy to call":
+        return "noisy"
     return "flat"
 
 
@@ -153,6 +162,9 @@ def _explain(effect, by_id: dict[int, Example], tested: int) -> tuple[str, list[
 
     moved = effect.delta_per_class or {}
     kind = _kind(effect)
+    interval = (f" Resampling the examples put the change between "
+                f"{effect.ci_low:+.3f} and {effect.ci_high:+.3f} (90% of the time)."
+                if effect.ci_low is not None else "")
 
     def samples(ids: list[int], arrow: str) -> list[str]:
         out = []
@@ -165,11 +177,23 @@ def _explain(effect, by_id: dict[int, Example], tested: int) -> tuple[str, list[
                 )
         return out
 
+    if kind == "noisy":
+        why = [
+            f"The point estimate is {effect.delta_macro_f1:+.3f}, but the interval crosses "
+            "zero, so this run cannot say whether the block helps or hurts." + interval,
+            f"It moved {len(effect.fixed)} example(s) one way and {len(effect.broken)} the "
+            "other on a subset of "
+            f"{tested}.",
+        ]
+        fix = ("Do not act on this yet. Re-run with a larger <code>--subset-size</code>, or "
+               "add more labelled examples of the cases this block is meant to cover.")
+        return "Too noisy to judge", why, fix
+
     if kind == "helps":
         worst = min(moved, key=lambda k: moved[k]) if moved else None
         why = [
             f"Taking this block out drops macro F1 by {abs(effect.delta_macro_f1):.3f} "
-            f"on the {tested} examples it was tested on.",
+            f"on the {tested} examples it was tested on." + interval,
             f"{len(effect.broken)} example(s) that the full prompt gets right become wrong "
             "without it."
             + (f" The class that suffers most is <code>{_esc(worst)}</code>." if worst else ""),
@@ -183,7 +207,7 @@ def _explain(effect, by_id: dict[int, Example], tested: int) -> tuple[str, list[
         best = max(moved, key=lambda k: moved[k]) if moved else None
         why = [
             f"Removing this block raises macro F1 by {effect.delta_macro_f1:.3f}. "
-            "It is costing you accuracy.",
+            "It is costing you accuracy." + interval,
             f"{len(effect.fixed)} example(s) that the full prompt gets wrong become correct "
             "once it is gone."
             + (f" The gain lands mostly on class <code>{_esc(best)}</code>." if best else ""),
@@ -195,8 +219,8 @@ def _explain(effect, by_id: dict[int, Example], tested: int) -> tuple[str, list[
         return "This block is costing you score", why, fix
 
     why = [
-        f"Removing this block produced identical predictions on all {tested} tested "
-        "examples. Macro F1 moved by less than 0.005.",
+        f"Removing this block barely moved the predictions on the {tested} tested "
+        "examples." + interval,
         "Instructions like this often read as useful to a human and are invisible to the "
         "model.",
     ]
@@ -246,9 +270,6 @@ def render_report(
 
     # --- hero: the prompt, block by block --------------------------------
     if ablation:
-        effects = {e.block.index: e for e in ablation.effects}
-        widest = max([abs(e.contribution) for e in ablation.effects] + [0.001])
-
         parts.append("<h2>What each block of the prompt does</h2>")
         parts.append(
             '<p class="note">This is your prompt. Each block was removed on its own and '
@@ -259,7 +280,7 @@ def render_report(
             '<div class="legend">'
             '<span><i class="swatch sw-helps"></i>removing it lowers the score</span>'
             '<span><i class="swatch sw-hurts"></i>removing it raises the score</span>'
-            '<span><i class="swatch sw-flat"></i>no measurable effect</span>'
+            '<span><i class="swatch sw-flat"></i>no measurable effect</span><span><i class="swatch sw-noisy"></i>too noisy to judge</span>'
             "</div>"
         )
 
@@ -294,7 +315,8 @@ def render_report(
 
         # --- ablation table ----------------------------------------------
         parts.append("<h2>Per-class effect of removing each block</h2>")
-        parts.append("<table><thead><tr><th>block</th><th class='num-cell'>macro F1</th>")
+        parts.append("<table><thead><tr><th>block</th><th class='num-cell'>macro F1</th>"
+                     "<th class='num-cell'>90% CI</th>")
         for label in baseline_score.labels:
             parts.append(f"<th class='num-cell'>F1 {_esc(label)}</th>")
         parts.append("<th class='num-cell'>fixed</th><th class='num-cell'>broken</th></tr></thead><tbody>")
@@ -307,14 +329,18 @@ def render_report(
             parts.append(f"<tr><td class='mono'>#{effect.block.index + 1} "
                          f"{_esc(effect.block.preview)}</td>")
             parts.append(f"<td class='num-cell'>{_fmt_delta(effect.delta_macro_f1)}</td>")
+            parts.append(f"<td class='num-cell'>{_esc(effect.ci_text.replace('90% CI ', ''))}"
+                         "</td>")
             for label in baseline_score.labels:
                 parts.append(f"<td class='num-cell'>"
                              f"{_fmt_delta(effect.delta_per_class.get(label, 0.0))}</td>")
             parts.append(f"<td class='num-cell'>{len(effect.fixed)}</td>"
                          f"<td class='num-cell'>{len(effect.broken)}</td></tr>")
         parts.append("</tbody></table>")
-        parts.append('<p class="note">Ordered by how much the block helps. Anything at the '
-                     "bottom with a positive macro F1 delta is a candidate for deletion.</p>")
+        parts.append('<p class="note">Ordered by how much the block helps. The interval '
+                     "comes from resampling the tested examples: when it crosses zero, the "
+                     "run cannot tell the direction and the block is left alone rather than "
+                     "judged.</p>")
 
     # --- per class ---------------------------------------------------------
     parts.append("<h2>Scores by class</h2>")

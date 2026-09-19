@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>promptxray - examples/prompt.txt</title>
+<style>
+:root {
+  --paper: #f6f7f9;
+  --card: #ffffff;
+  --ink: #16202e;
+  --muted: #6b7787;
+  --rule: #dde2e9;
+  --helps: #1b4d8f;
+  --hurts: #b4690e;
+  --flat: #98a2b0;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 40px 20px 80px;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px; line-height: 1.55;
+}
+.wrap { max-width: 880px; margin: 0 auto; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em;
+     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+h2 { font-size: 15px; margin: 44px 0 12px; font-weight: 600;
+     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.sub { color: var(--muted); font-size: 13px; margin: 0 0 28px; }
+.note { color: var(--muted); font-size: 13px; max-width: 62ch; margin: 0 0 16px; }
+
+.stats { display: flex; flex-wrap: wrap; gap: 1px; background: var(--rule);
+         border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.stat { background: var(--card); padding: 12px 16px; flex: 1 1 120px; }
+.stat b { display: block; font-size: 20px; font-weight: 600;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.stat span { font-size: 12px; color: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 18px;
+  font-size: 12.5px; color: var(--muted); align-items: center; }
+.swatch { display: inline-block; width: 22px; height: 11px; border-radius: 2px;
+  vertical-align: -1px; margin-right: 7px; }
+.sw-helps { background: rgba(27,77,143,.20); border-left: 3px solid var(--helps); }
+.sw-hurts { background: rgba(180,105,14,.20); border-left: 3px solid var(--hurts); }
+.sw-flat  { background: rgba(152,162,176,.10); border-left: 3px solid var(--flat); }
+.sw-noisy { border-left: 3px solid var(--muted);
+            background: repeating-linear-gradient(135deg, rgba(107,119,135,.30) 0 3px,
+                                                  transparent 3px 6px); }
+
+.prompt { background: var(--card); border: 1px solid var(--rule); border-radius: 3px;
+  padding: 20px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13.5px; line-height: 1.6; }
+
+.blk { display: block; position: relative; padding: 8px 100px 8px 11px; margin: 0 0 12px;
+  border-left: 3px solid transparent; white-space: pre-wrap; word-break: break-word;
+  cursor: default; transition: background .12s ease; }
+.blk:last-child { margin-bottom: 0; }
+.blk.helps { background: rgba(27,77,143,.10); border-left-color: var(--helps); }
+.blk.hurts { background: rgba(180,105,14,.12); border-left-color: var(--hurts); }
+.blk.flat  { border-left-color: var(--flat); border-left-style: dotted; }
+.blk.noisy { border-left-color: var(--muted);
+             background: repeating-linear-gradient(135deg, rgba(107,119,135,.09) 0 6px,
+                                                   transparent 6px 12px); }
+.blk.kept  { border-left-color: var(--rule); color: var(--muted); }
+.blk:hover, .blk:focus-visible { background: rgba(22,32,46,.06); }
+.blk:focus-visible { outline: 2px solid var(--helps); outline-offset: 2px; }
+.blk .tag { position: absolute; right: 10px; top: 8px; font-size: 11px; color: var(--muted);
+  letter-spacing: .02em; }
+.blk .score { font-weight: 600; }
+.blk.helps .score { color: var(--helps); }
+.blk.hurts .score { color: var(--hurts); }
+
+.tip { display: none; position: absolute; left: 0; top: calc(100% - 4px); z-index: 20;
+  width: min(460px, 92vw); background: var(--ink); color: #eef2f7; border-radius: 4px;
+  padding: 13px 15px; font-size: 12.5px; line-height: 1.5; white-space: normal;
+  box-shadow: 0 8px 24px rgba(22,32,46,.28);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.blk:hover .tip, .blk:focus .tip, .blk:focus-within .tip { display: block; }
+.tip h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.tip p { margin: 0 0 8px; color: #c3cdd9; }
+.tip p:last-child { margin-bottom: 0; }
+.tip .fix { border-top: 1px solid rgba(255,255,255,.16); padding-top: 8px; color: #fff; }
+.tip code { background: rgba(255,255,255,.12); padding: 1px 5px; border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; }
+.tip .ex { color: #9fb2c7; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px; display: block; margin: 3px 0 0; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 10px 0 0; }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.num-cell, th.num-cell { text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.diag { background: #eef2f7; font-weight: 600; }
+.pos { color: var(--hurts); }
+.neg { color: var(--helps); }
+
+details { border-top: 1px solid var(--rule); padding: 10px 0; }
+summary { cursor: pointer; font-size: 13px; }
+summary:focus-visible { outline: 2px solid var(--helps); outline-offset: 3px; }
+.err { font-size: 13px; margin: 8px 0 0; padding-left: 14px; border-left: 2px solid var(--rule); }
+.err b { font-weight: 600; }
+footer { margin-top: 56px; color: var(--muted); font-size: 12px;
+         border-top: 1px solid var(--rule); padding-top: 14px; }
+@media (max-width: 640px) {
+  .blk { padding-right: 12px; padding-top: 24px; }
+  .blk .tag { top: 5px; right: 11px; }
+}
+</style></head><body><div class="wrap">
+<h1>promptxray</h1>
+<p class="sub mono">examples/prompt.txt &middot; examples/data.csv &middot; mock-classifier
+ via mock &middot; 2026-09-19 23:42</p>
+<div class="stats">
+<div class="stat"><b>83.7%</b><span>accuracy</span></div>
+<div class="stat"><b>0.836</b><span>macro F1</span></div>
+<div class="stat"><b>43</b><span>examples</span></div>
+<div class="stat"><b>0</b><span>unparsable answers</span></div>
+<div class="stat"><b>301</b><span>API calls (0 cached)</span></div>
+</div>
+<h2>What each block of the prompt does</h2>
+<p class="note">This is your prompt. Each block was removed on its own and the prompt re-run on 43 examples. Hover a block - or tab to it - to see why it is coloured that way and what to do about it.</p>
+<div class="legend"><span><i class="swatch sw-helps"></i>removing it lowers the score</span><span><i class="swatch sw-hurts"></i>removing it raises the score</span><span><i class="swatch sw-flat"></i>no measurable effect</span><span><i class="swatch sw-noisy"></i>too noisy to judge</span></div>
+<div class="prompt">
+<span class="blk flat" tabindex="0"><span class="tag">#1 <span class="score">+0.000</span></span>You are a message triage assistant for a customer support inbox.<span class="tip"><h4>This block changes nothing</h4><p>Removing this block barely moved the predictions on the 43 tested examples. Resampling the examples put the change between +0.000 and +0.000 (90% of the time).</p><p>Instructions like this often read as useful to a human and are invisible to the model.</p><p class="fix">Safe to delete: it spends tokens and latency for no measurable gain. If you are convinced it matters, re-run with a larger <code>--subset-size</code> before trusting this verdict.</p></span></span>
+<span class="blk flat" tabindex="0"><span class="tag">#2 <span class="score">+0.000</span></span>Classify the message into exactly one of: spam, urgent, normal.<span class="tip"><h4>This block changes nothing</h4><p>Removing this block barely moved the predictions on the 43 tested examples. Resampling the examples put the change between +0.000 and +0.000 (90% of the time).</p><p>Instructions like this often read as useful to a human and are invisible to the model.</p><p class="fix">Safe to delete: it spends tokens and latency for no measurable gain. If you are convinced it matters, re-run with a larger <code>--subset-size</code> before trusting this verdict.</p></span></span>
+<span class="blk helps" tabindex="0"><span class="tag">#3 <span class="score">-0.125</span></span>Treat ALL-CAPS messages as urgent, because customers shout when something is on fire.<span class="tip"><h4>This block is doing work</h4><p>Taking this block out drops macro F1 by 0.125 on the 43 examples it was tested on. Resampling the examples put the change between -0.222 and -0.051 (90% of the time).</p><p>5 example(s) that the full prompt gets right become wrong without it. The class that suffers most is <code>urgent</code>.</p><p><span class="ex">breaks: [urgent] OUR WHOLE STORE IS OFFLINE AND NOBODY ANSWERS</span></p><p><span class="ex">breaks: [urgent] THE PAYMENT PAGE IS BROKEN PLEASE LOOK AT IT</span></p><p class="fix">Keep this block. If you want the prompt shorter, rewrite it rather than delete it, then confirm the rewrite with <code>promptxray diff</code>.</p></span></span>
+<span class="blk hurts" tabindex="0"><span class="tag">#4 <span class="score">+0.096</span></span>Ignore promotional wording in quotes - people often quote an advert while asking a question about it.<span class="tip"><h4>This block is costing you score</h4><p>Removing this block raises macro F1 by 0.096. It is costing you accuracy. Resampling the examples put the change between +0.025 and +0.185 (90% of the time).</p><p>4 example(s) that the full prompt gets wrong become correct once it is gone. The gain lands mostly on class <code>spam</code>.</p><p><span class="ex">fixes: [spam] Your ad says "click here for a free prize" - please stop mailing me offers.</span></p><p><span class="ex">fixes: [spam] I got another one: "buy now, winner selected today" from your domain.</span></p><p class="fix">Delete it, or narrow it so it only fires where you meant it to. The rule is probably right in spirit and too broad in wording. Verify the change with <code>promptxray diff --before old.txt --after new.txt</code>.</p></span></span>
+<span class="blk flat" tabindex="0"><span class="tag">#5 <span class="score">+0.000</span></span>Be thorough and think carefully about the context of the message before deciding.<span class="tip"><h4>This block changes nothing</h4><p>Removing this block barely moved the predictions on the 43 tested examples. Resampling the examples put the change between +0.000 and +0.000 (90% of the time).</p><p>Instructions like this often read as useful to a human and are invisible to the model.</p><p class="fix">Safe to delete: it spends tokens and latency for no measurable gain. If you are convinced it matters, re-run with a larger <code>--subset-size</code> before trusting this verdict.</p></span></span>
+<span class="blk flat" tabindex="0"><span class="tag">#6 <span class="score">+0.000</span></span>Remember that accuracy matters a lot to our team and our customers.<span class="tip"><h4>This block changes nothing</h4><p>Removing this block barely moved the predictions on the 43 tested examples. Resampling the examples put the change between +0.000 and +0.000 (90% of the time).</p><p>Instructions like this often read as useful to a human and are invisible to the model.</p><p class="fix">Safe to delete: it spends tokens and latency for no measurable gain. If you are convinced it matters, re-run with a larger <code>--subset-size</code> before trusting this verdict.</p></span></span>
+<span class="blk kept" tabindex="0"><span class="tag">kept</span>Answer with the single label and nothing else.<span class="tip"><h4>Not tested</h4><p>This block was left in every run because it is marked [[keep]].</p><p class="fix">Removing it would break the prompt instead of testing an idea, so its effect cannot be measured.</p></span></span>
+<span class="blk kept" tabindex="0"><span class="tag">kept</span>Text: {input}<span class="tip"><h4>Not tested</h4><p>This block was left in every run because it is contains {input}.</p><p class="fix">Removing it would break the prompt instead of testing an idea, so its effect cannot be measured.</p></span></span>
+</div>
+<p class="hint">The number on each block is the change in macro F1 when that block is removed. Negative means the block is holding the score up.</p>
+<h2>Per-class effect of removing each block</h2>
+<table><thead><tr><th>block</th><th class='num-cell'>macro F1</th><th class='num-cell'>90% CI</th>
+<th class='num-cell'>F1 normal</th>
+<th class='num-cell'>F1 spam</th>
+<th class='num-cell'>F1 urgent</th>
+<th class='num-cell'>fixed</th><th class='num-cell'>broken</th></tr></thead><tbody>
+<tr><td class='mono'>#3 Treat ALL-CAPS messages as urgent, because customers shout when something is on fire.</td>
+<td class='num-cell'><span class="neg">-0.125</span></td>
+<td class='num-cell'>[-0.222, -0.051]</td>
+<td class='num-cell'><span class="neg">-0.090</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="neg">-0.285</span></td>
+<td class='num-cell'>0</td><td class='num-cell'>5</td></tr>
+<tr><td class='mono'>#1 You are a message triage assistant for a customer support inbox.</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>[+0.000, +0.000]</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>0</td><td class='num-cell'>0</td></tr>
+<tr><td class='mono'>#2 Classify the message into exactly one of: spam, urgent, normal.</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>[+0.000, +0.000]</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>0</td><td class='num-cell'>0</td></tr>
+<tr><td class='mono'>#5 Be thorough and think carefully about the context of the message before deciding.</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>[+0.000, +0.000]</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>0</td><td class='num-cell'>0</td></tr>
+<tr><td class='mono'>#6 Remember that accuracy matters a lot to our team and our customers.</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>[+0.000, +0.000]</td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>0</td><td class='num-cell'>0</td></tr>
+<tr><td class='mono'>#4 Ignore promotional wording in quotes - people often quote an advert while asking a ques...</td>
+<td class='num-cell'><span class="pos">+0.096</span></td>
+<td class='num-cell'>[+0.025, +0.185]</td>
+<td class='num-cell'><span class="pos">+0.090</span></td>
+<td class='num-cell'><span class="pos">+0.198</span></td>
+<td class='num-cell'><span class="">+0.000</span></td>
+<td class='num-cell'>4</td><td class='num-cell'>0</td></tr>
+</tbody></table>
+<p class="note">Ordered by how much the block helps. The interval comes from resampling the tested examples: when it crosses zero, the run cannot tell the direction and the block is left alone rather than judged.</p>
+<h2>Scores by class</h2>
+<table><thead><tr><th>class</th><th class='num-cell'>precision</th><th class='num-cell'>recall</th><th class='num-cell'>F1</th><th class='num-cell'>support</th></tr></thead><tbody>
+<tr><td class='mono'>normal</td><td class='num-cell'>0.708</td><td class='num-cell'>1.000</td><td class='num-cell'>0.829</td><td class='num-cell'>17</td></tr>
+<tr><td class='mono'>spam</td><td class='num-cell'>1.000</td><td class='num-cell'>0.615</td><td class='num-cell'>0.762</td><td class='num-cell'>13</td></tr>
+<tr><td class='mono'>urgent</td><td class='num-cell'>1.000</td><td class='num-cell'>0.846</td><td class='num-cell'>0.917</td><td class='num-cell'>13</td></tr>
+</tbody></table>
+<h2>Confusion matrix</h2>
+<p class="note">Rows are the true label, columns are what the model answered. The diagonal is correct.</p>
+<table><thead><tr><th>true \ predicted</th>
+<th class='num-cell'>normal</th>
+<th class='num-cell'>spam</th>
+<th class='num-cell'>urgent</th>
+<th class='num-cell'>&lt;unparsed&gt;</th>
+</tr></thead><tbody>
+<tr><td class='mono'>normal</td>
+<td class='num-cell diag'>17</td>
+<td class='num-cell'>0</td>
+<td class='num-cell'>0</td>
+<td class='num-cell'>0</td>
+</tr>
+<tr><td class='mono'>spam</td>
+<td class='num-cell'>5</td>
+<td class='num-cell diag'>8</td>
+<td class='num-cell'>0</td>
+<td class='num-cell'>0</td>
+</tr>
+<tr><td class='mono'>urgent</td>
+<td class='num-cell'>2</td>
+<td class='num-cell'>0</td>
+<td class='num-cell diag'>11</td>
+<td class='num-cell'>0</td>
+</tr>
+</tbody></table>
+<h2>Examples the prompt got wrong</h2>
+<details open><summary>7 wrong, showing 7</summary>
+<p class="err">Your ad says "click here for a free prize" - please stop mailing me offers.<br><b>expected</b> <span class="mono">spam</span> &middot; <b>got</b> <span class="mono">normal</span></p>
+<p class="err">I got another one: "buy now, winner selected today" from your domain.<br><b>expected</b> <span class="mono">spam</span> &middot; <b>got</b> <span class="mono">normal</span></p>
+<p class="err">Message reads "FREE upgrade, click here" and it came from your server.<br><b>expected</b> <span class="mono">spam</span> &middot; <b>got</b> <span class="mono">normal</span></p>
+<p class="err">Third copy of "claim your prize now" offer this week.<br><b>expected</b> <span class="mono">spam</span> &middot; <b>got</b> <span class="mono">normal</span></p>
+<p class="err">Someone keeps sending me adverts through your contact form.<br><b>expected</b> <span class="mono">spam</span> &middot; <b>got</b> <span class="mono">normal</span></p>
+<p class="err">My account was charged twice and support is silent.<br><b>expected</b> <span class="mono">urgent</span> &middot; <b>got</b> <span class="mono">normal</span></p>
+<p class="err">Our nightly sync has failed three times in a row.<br><b>expected</b> <span class="mono">urgent</span> &middot; <b>got</b> <span class="mono">normal</span></p>
+</details>
+<footer>Generated by promptxray. Re-run with the same prompt to get the same numbers - every answer is cached on disk.</footer>
+</div></body></html>

@@ -1,6 +1,5 @@
 from promptxray.metrics import UNPARSED, normalise, score
 
-
 LABELS = ["spam", "normal"]
 
 

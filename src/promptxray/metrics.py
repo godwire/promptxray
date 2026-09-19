@@ -105,3 +105,31 @@ def score(gold: dict[int, str], predicted: dict[int, str], labels: list[str]) ->
         unparsed=unparsed,
         wrong_ids=wrong_ids,
     )
+
+
+def macro_f1_from_pairs(pairs: list[tuple[str, str]], labels: list[str]) -> float:
+    """Macro F1 straight from (gold, predicted) pairs.
+
+    Bootstrap resampling draws the same example more than once, so it cannot use
+    the id-keyed score() above. This works on a plain list instead.
+    """
+    tp = {label: 0 for label in labels}
+    fp = {label: 0 for label in labels}
+    fn = {label: 0 for label in labels}
+
+    for truth, guess in pairs:
+        if truth == guess:
+            tp[truth] = tp.get(truth, 0) + 1
+        else:
+            fn[truth] = fn.get(truth, 0) + 1
+            if guess in fp:
+                fp[guess] += 1
+
+    total = 0.0
+    for label in labels:
+        precision_denominator = tp[label] + fp[label]
+        recall_denominator = tp[label] + fn[label]
+        precision = tp[label] / precision_denominator if precision_denominator else 0.0
+        recall = tp[label] / recall_denominator if recall_denominator else 0.0
+        total += 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+    return total / len(labels) if labels else 0.0

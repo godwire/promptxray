@@ -1,0 +1,139 @@
+name: promptxray
+description: Test an LLM classifier prompt against labelled data, and fail the build when a prompt change makes it worse.
+author: Heorhii Tolstoukhov
+
+branding:
+  icon: crosshair
+  color: blue
+
+inputs:
+  command:
+    description: "What to run: 'diff' (compare two prompt versions) or 'ablate' (measure every block)."
+    default: diff
+  prompt:
+    description: "The prompt file to test. For 'diff' this is the new version."
+    required: true
+  before:
+    description: "For 'diff': the old prompt file to compare against."
+    default: ""
+  data:
+    description: CSV or JSONL file with labelled examples.
+    required: true
+  provider:
+    description: "mock, ollama, lmstudio, openrouter, groq, openai or anthropic. 'ollama' installs and starts Ollama on the runner, free."
+    default: ollama
+  model:
+    description: "Model name, for example llama3.2 or qwen2.5:1.5b."
+    default: ""
+  fail-under:
+    description: "For 'diff': fail the step if the new prompt's macro F1 is below this."
+    default: ""
+  subset-size:
+    description: "For 'ablate': examples used for each ablated run."
+    default: "40"
+  workers:
+    description: Parallel requests to the model.
+    default: "4"
+  report:
+    description: "For 'ablate': file name for the HTML report. It is also uploaded as a workflow artifact."
+    default: promptxray-report.html
+  python-version:
+    description: Python version to run promptxray with.
+    default: "3.12"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install promptxray
+      shell: bash
+      # Installs the exact version of the action you pinned, not whatever is newest on PyPI.
+      run: pip install --quiet "${{ github.action_path }}"
+
+    - name: Start Ollama and pull the model
+      if: inputs.provider == 'ollama'
+      shell: bash
+      env:
+        MODEL: ${{ inputs.model }}
+      run: |
+        if [ -z "$MODEL" ]; then
+          echo "::error::Set the 'model' input when using provider 'ollama', for example qwen2.5:1.5b"
+          exit 1
+        fi
+        if ! command -v ollama >/dev/null; then
+          curl -fsSL https://ollama.com/install.sh | sh
+        fi
+        if ! curl -sf http://localhost:11434/api/tags >/dev/null; then
+          (ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &)
+        fi
+        for _ in $(seq 1 60); do
+          curl -sf http://localhost:11434/api/tags >/dev/null && break
+          sleep 1
+        done
+        ollama pull "$MODEL"
+
+    - name: Run promptxray
+      shell: bash
+      # Inputs travel through environment variables rather than being pasted
+      # into the script, so a file name can never be executed as shell code.
+      env:
+        PX_COMMAND: ${{ inputs.command }}
+        PX_PROMPT: ${{ inputs.prompt }}
+        PX_BEFORE: ${{ inputs.before }}
+        PX_DATA: ${{ inputs.data }}
+        PX_PROVIDER: ${{ inputs.provider }}
+        PX_MODEL: ${{ inputs.model }}
+        PX_FAIL_UNDER: ${{ inputs.fail-under }}
+        PX_SUBSET: ${{ inputs.subset-size }}
+        PX_WORKERS: ${{ inputs.workers }}
+        PX_REPORT: ${{ inputs.report }}
+      run: |
+        set -o pipefail
+        common=(--data "$PX_DATA" --provider "$PX_PROVIDER" --workers "$PX_WORKERS")
+        if [ -n "$PX_MODEL" ]; then common+=(--model "$PX_MODEL"); fi
+
+        case "$PX_COMMAND" in
+          diff)
+            if [ -z "$PX_BEFORE" ]; then
+              echo "::error::The 'diff' command needs the 'before' input."
+              exit 1
+            fi
+            extra=()
+            if [ -n "$PX_FAIL_UNDER" ]; then extra+=(--fail-under "$PX_FAIL_UNDER"); fi
+            cmd=(promptxray diff --before "$PX_BEFORE" --after "$PX_PROMPT" "${common[@]}" "${extra[@]}")
+            ;;
+          ablate)
+            cmd=(promptxray ablate --prompt "$PX_PROMPT" --subset-size "$PX_SUBSET"
+                 --report "$PX_REPORT" "${common[@]}")
+            ;;
+          *)
+            echo "::error::Unknown command '$PX_COMMAND'. Use 'diff' or 'ablate'."
+            exit 1
+            ;;
+        esac
+
+        status=0
+        "${cmd[@]}" 2>&1 | tee "$RUNNER_TEMP/promptxray.txt" || status=$?
+
+        {
+          echo "### promptxray $PX_COMMAND"
+          echo
+          echo "\`$PX_PROMPT\` on \`$PX_DATA\` with \`${PX_MODEL:-default model}\` via \`$PX_PROVIDER\`"
+          echo
+          echo '```text'
+          cat "$RUNNER_TEMP/promptxray.txt"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        exit $status
+
+    - name: Upload the HTML report
+      if: always() && inputs.command == 'ablate'
+      uses: actions/upload-artifact@v4
+      with:
+        name: promptxray-report
+        path: ${{ inputs.report }}
+        if-no-files-found: ignore

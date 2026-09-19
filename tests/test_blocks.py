@@ -1,6 +1,5 @@
 from promptxray import blocks as b
 
-
 PROMPT = """You are a classifier.
 
 Answer with one word. [[keep]]
