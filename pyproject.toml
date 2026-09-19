@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "promptxray"
-version = "0.1.0"
+version = "0.3.0"
 description = "Find out which line of your prompt is causing your classifier's errors."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,16 +16,22 @@ classifiers = [
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "ruff>=0.5"]
 
 [project.urls]
 Homepage = "https://github.com/godwire/promptxray"
 Issues = "https://github.com/godwire/promptxray/issues"
+Changelog = "https://github.com/godwire/promptxray/blob/main/CHANGELOG.md"
+Demo = "https://godwire.github.io/promptxray/"
 
 [project.scripts]
 promptxray = "promptxray.cli:main"
@@ -36,3 +42,20 @@ packages = ["src/promptxray"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# The report is an HTML template written as Python strings; breaking those lines
+# would make the markup harder to read, not easier.
+"src/promptxray/report.py" = ["E501"]
+
+[tool.hatch.build.targets.sdist]
+# Ship what is needed to build and test the package, not the website or screenshots.
+include = ["src", "tests", "examples", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
