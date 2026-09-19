@@ -9,3 +9,6 @@ build/
 report.html
 report.json
 .pytest_cache/
+prompt-suggested.txt
+*.html
+!docs/index.html
