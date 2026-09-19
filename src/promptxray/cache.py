@@ -36,7 +36,7 @@ class Cache:
 
     @staticmethod
     def key(model: str, prompt: str) -> str:
-        return hashlib.sha256(f"{model}\x00{prompt}".encode("utf-8")).hexdigest()
+        return hashlib.sha256(f"{model}\x00{prompt}".encode()).hexdigest()
 
     def get(self, model: str, prompt: str) -> Answer | None:
         if not self._conn:
