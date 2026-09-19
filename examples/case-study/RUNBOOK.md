@@ -27,6 +27,14 @@ of them pinned.
 Two of those rules are deliberately overbroad. Don't look for them in the file —
 the point of the exercise is to let the tool find them.
 
+## Run it without installing anything
+
+Fork the repository on GitHub, open the **Actions** tab, pick **real model** in
+the list on the left, and press **Run workflow**. GitHub installs Ollama on one
+of its own machines, downloads an open model, runs the ablation below, and
+attaches `case-study-report.html` to the run under **Artifacts**. Free for public
+repositories. A CPU runner is slow, so expect it to take a while.
+
 ## Run it — free, on your own machine
 
 Install [Ollama](https://ollama.com) and pull a small model. `llama3.2` is
@@ -73,6 +81,30 @@ Open `case-v1.html` and read the coloured prompt top to bottom.
    instead of a label. A high count here is a formatting problem, not a
    reasoning problem.
 
+## Let the tool write the shorter prompt
+
+```bash
+promptxray suggest \
+  --prompt examples/case-study/prompt-v1.txt \
+  --data examples/case-study/chat-moderation.csv \
+  --provider ollama --model llama3.2 \
+  --holdout 0.3 --subset-size 40 --out prompt-v2.txt
+```
+
+Blocks are judged on 70% of the dataset and the result is scored on the other
+30%, which the selection never saw. If the shorter prompt does not hold up on
+that holdout, nothing is written.
+
+The search removes one block at a time and re-measures after each removal. The
+case-study prompt has two few-shot examples and three class definitions that
+partly repeat each other; if the model only needs one of a pair, the output
+names the pair instead of silently cutting both.
+
+It prints the worst-case number of calls before it starts. With twelve
+unpinned blocks that number is large on a laptop CPU. Two ways to shorten it:
+`--strategy one-shot` (a single round, about the cost of `ablate`), or
+`--max-steps 4` to stop after four removals.
+
 ## Then fix it and prove the fix
 
 Copy the prompt, delete or narrow the blocks the report blamed, and compare:
@@ -95,9 +127,12 @@ would have hidden that.
 ## Reading the numbers honestly
 
 - Run with temperature 0, which is the default here.
-- A delta smaller than about 0.02 on a 50-example subset is noise. Raise
-  `--subset-size` before you trust a small number.
-- Run the same ablation twice with `--seed 1` and compare. Verdicts that flip
-  between seeds are not verdicts.
+- Read the confidence interval, not the point estimate. A block marked "too
+  noisy to call" has an interval crossing zero: the run genuinely cannot say
+  which way it goes, and raising `--subset-size` is the fix.
+- Expect several noisy verdicts on 50 examples with a small local model. That
+  is the dataset talking, not a bug.
+- Run the same ablation with `--seed 1` and compare. Confident verdicts should
+  survive; if they flip, treat the whole report as underpowered.
 - These 100 examples are labelled by one person. Treat the result as a signal
   about your prompt, not as a benchmark of the model.
