@@ -1,6 +1,6 @@
 """Talk to a model.
 
-Three backends, all over the standard library so the package has no runtime
+Four backends, all over the standard library so the package has no runtime
 dependencies:
 
   mock      - no network, no key. Answers with a tiny keyword rule so the whole
@@ -8,6 +8,7 @@ dependencies:
   openai    - any server that speaks the OpenAI chat format: OpenAI itself,
               Ollama, OpenRouter, Groq, vLLM, LM Studio.
   anthropic - the Anthropic messages API.
+  gemini    - Google's Generative Language API.
 """
 
 from __future__ import annotations
@@ -141,6 +142,39 @@ class OpenAICompatibleProvider(Provider):
         )
 
 
+class GeminiProvider(Provider):
+    """Google's Generative Language API. Has a genuinely free tier."""
+
+    name = "gemini"
+
+    def __init__(self, model: str, api_key: str | None = None, **kw):
+        super().__init__(model, **kw)
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
+        if not self.api_key:
+            raise ProviderError("Set GEMINI_API_KEY before using --provider gemini.")
+
+    def complete(self, prompt: str) -> Answer:
+        # The key travels as a header, not a `?key=` query param, so it never
+        # ends up in a retry's error message or in CI logs that echo the URL.
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": self.temperature, "maxOutputTokens": 32},
+        }
+        data = _post(url, payload, {"x-goog-api-key": self.api_key}, self.timeout)
+        try:
+            candidate = data["candidates"][0]
+            text = "".join(p.get("text", "") for p in candidate["content"]["parts"])
+        except (KeyError, IndexError) as exc:
+            raise ProviderError(f"Unexpected response shape: {json.dumps(data)[:400]}") from exc
+        usage = data.get("usageMetadata") or {}
+        return Answer(
+            text=text.strip(),
+            input_tokens=usage.get("promptTokenCount", 0),
+            output_tokens=usage.get("candidatesTokenCount", 0),
+        )
+
+
 class AnthropicProvider(Provider):
     """The Anthropic messages API."""
 
@@ -208,4 +242,6 @@ def build(provider: str, model: str, base_url: str | None = None) -> Provider:
         return OpenAICompatibleProvider(model, base_url=base_url, flavour=flavour)
     if provider == "anthropic":
         return AnthropicProvider(model)
+    if provider == "gemini":
+        return GeminiProvider(model)
     raise ProviderError(f"Unknown provider: {provider}")

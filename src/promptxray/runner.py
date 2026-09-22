@@ -17,6 +17,8 @@ PRICES = {
     "gpt-4o": (2.50, 10.00),
     "claude-haiku-4-5": (1.00, 5.00),
     "claude-sonnet-4-6": (3.00, 15.00),
+    "gemini-1.5-flash": (0.075, 0.30),
+    "gemini-2.0-flash": (0.10, 0.40),
 }
 
 

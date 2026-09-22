@@ -53,7 +53,7 @@ class BlockEffect:
         """
         if self.skipped_reason:
             return "not tested"
-        if self.ci_low is None:
+        if self.ci_low is None or self.ci_high is None:
             if not self.fixed and not self.broken:
                 return "no effect"
             return "carries its weight" if self.delta_macro_f1 < 0 else "hurts the score"

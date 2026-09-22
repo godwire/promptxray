@@ -25,7 +25,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff>=0.5"]
+dev = ["pytest>=7", "ruff>=0.5", "mypy>=1.10"]
 
 [project.urls]
 Homepage = "https://github.com/godwire/promptxray"
@@ -55,6 +55,11 @@ select = ["E", "F", "W", "I", "B", "UP"]
 # The report is an HTML template written as Python strings; breaking those lines
 # would make the markup harder to read, not easier.
 "src/promptxray/report.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/promptxray"]
+ignore_missing_imports = true
 
 [tool.hatch.build.targets.sdist]
 # Ship what is needed to build and test the package, not the website or screenshots.

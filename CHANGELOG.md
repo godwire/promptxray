@@ -4,6 +4,18 @@ All notable changes to this project are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `--provider gemini` for Google's Generative Language API (`GEMINI_API_KEY`),
+  another free-tier option alongside Ollama, OpenRouter and Groq.
+- `py.typed` marker: the package now ships type information for consumers who
+  import it as a library.
+- `mypy` runs in CI alongside `ruff` and `pytest`.
+- Unit tests for the network providers (OpenAI-compatible, Anthropic, Gemini),
+  including retry-on-rate-limit behaviour, with `urlopen` stubbed so they need
+  no network and no API key.
+
 ## [0.3.0] - 2026-09-19
 
 First release published to PyPI. Versions 0.1.0 and 0.2.0 were development

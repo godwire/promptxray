@@ -35,6 +35,6 @@ body:
     id: provider
     attributes:
       label: Provider
-      options: [mock, ollama, lmstudio, openrouter, groq, openai, anthropic, other]
+      options: [mock, ollama, lmstudio, openrouter, groq, gemini, openai, anthropic, other]
     validations:
       required: true

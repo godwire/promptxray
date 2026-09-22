@@ -266,6 +266,7 @@ You never have to pay to use this tool. The first three cost nothing:
 | `lmstudio` | Same, via LM Studio | free | none |
 | `openrouter` | Hosted; has free models (`:free` suffix) | free tier | `OPENROUTER_API_KEY` |
 | `groq` | Hosted, fast | free tier | `GROQ_API_KEY` |
+| `gemini` | Google's Gemini models | free tier | `GEMINI_API_KEY` |
 | `openai` | OpenAI and compatible servers | paid | `OPENAI_API_KEY` |
 | `anthropic` | Claude | paid | `ANTHROPIC_API_KEY` |
 

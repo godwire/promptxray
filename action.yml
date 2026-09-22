@@ -20,7 +20,7 @@ inputs:
     description: CSV or JSONL file with labelled examples.
     required: true
   provider:
-    description: "mock, ollama, lmstudio, openrouter, groq, openai or anthropic. 'ollama' installs and starts Ollama on the runner, free."
+    description: "mock, ollama, lmstudio, openrouter, groq, gemini, openai or anthropic. 'ollama' installs and starts Ollama on the runner, free."
     default: ollama
   model:
     description: "Model name, for example llama3.2 or qwen2.5:1.5b."

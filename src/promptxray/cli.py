@@ -24,7 +24,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default="mock-classifier", help="model name")
     parser.add_argument("--provider", default="mock",
                         choices=["mock", "ollama", "lmstudio", "openrouter", "groq",
-                                 "openai", "anthropic", "local"])
+                                 "openai", "anthropic", "gemini", "local"])
     parser.add_argument("--base-url", default=None, help="override the API base URL")
     parser.add_argument("--text-column", default="text")
     parser.add_argument("--label-column", default="label")
