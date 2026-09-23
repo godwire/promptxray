@@ -30,6 +30,7 @@ def test_split_is_reproducible():
     assert [e.id for e in first] == [e.id for e in second]
 
 
+
 def _run_suggest(seed: int = 0):
     blocks = blocks_mod.parse_blocks(PROMPT.read_text(encoding="utf-8"))
     examples = dataset_mod.load(DATA)
