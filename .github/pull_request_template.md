@@ -6,5 +6,6 @@
 
 - [ ] `pytest -q` passes
 - [ ] `ruff check src tests` passes
+- [ ] `mypy` passes
 - [ ] New behaviour has a test that runs offline
 - [ ] `CHANGELOG.md` has a line under the next version

@@ -3,7 +3,7 @@
 [![tests](https://github.com/godwire/promptxray/actions/workflows/ci.yml/badge.svg)](https://github.com/godwire/promptxray/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/promptxray.svg)](https://pypi.org/project/promptxray/)
 [![Python](https://img.shields.io/pypi/pyversions/promptxray.svg)](https://pypi.org/project/promptxray/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/godwire/promptxray/blob/main/LICENSE)
 
 Find out which line of your prompt is causing your classifier's errors.
 
@@ -11,7 +11,7 @@ Every eval tool tells you your prompt scores 0.83. None of them tell you *which
 part of the prompt* earned that number. promptxray removes each block of your
 prompt one at a time, re-runs the dataset, and shows you the damage.
 
-![Report showing the prompt with each block coloured by its measured effect](docs/report.png)
+![Report showing the prompt with each block coloured by its measured effect](https://raw.githubusercontent.com/godwire/promptxray/main/docs/report.png)
 
 The report is your prompt, coloured block by block. Blue means the score drops
 without that block. Amber means the score goes *up* without it. Hover any block
@@ -21,20 +21,36 @@ about it.
 **[Open the live demo report](https://godwire.github.io/promptxray/)** and hover
 the blocks yourself.
 
+<details>
+<summary>Contents</summary>
+
+- [The 30-second version](#the-30-second-version)
+- [How it works](#how-it-works)
+- [Commands](#commands) — [`run`](#run--score-a-prompt), [`ablate`](#ablate--measure-what-every-block-does), [`suggest`](#suggest--find-the-smallest-prompt-that-does-the-same-job), [`diff`](#diff--compare-two-prompt-versions-example-by-example)
+- [In CI: the GitHub Action](#in-ci-the-github-action)
+- [A harder example](#a-harder-example)
+- [Writing a prompt file](#writing-a-prompt-file)
+- [Dataset format](#dataset-format)
+- [Providers](#providers)
+- [What it costs](#what-it-costs)
+- [What this is not](#what-this-is-not)
+- [Development](#development)
+- [Star history](#star-history)
+
+</details>
+
 ## The 30-second version
 
-No API key needed for the demo — a built-in mock classifier lets you see the
-whole thing work offline.
+No API key, no network, no files of your own. The demo runs a bundled
+triage prompt over 43 labelled messages with a built-in offline classifier,
+and opens the report:
 
 ```bash
 pip install promptxray
-
-promptxray ablate \
-  --prompt examples/prompt.txt \
-  --data examples/data.csv \
-  --provider mock \
-  --report report.html
+promptxray demo
 ```
+
+Or with nothing installed at all: `uvx promptxray demo` (or `pipx run promptxray demo`).
 
 ```
 baseline macro F1 0.836 on 43 examples
@@ -51,6 +67,13 @@ baseline macro F1 0.836 on 43 examples
 
 Read that bottom line again. Two thirds of that prompt is decoration, and one
 instruction someone added in good faith is actively costing 0.096 macro F1.
+
+Then point it at your own prompt and data — free, on a local model:
+
+```bash
+promptxray ablate --prompt prompt.txt --data data.csv \
+  --provider ollama --model llama3.2 --report report.html
+```
 
 ## How it works
 
@@ -193,7 +216,7 @@ jobs:
         with:
           fetch-depth: 0
       - run: git show origin/${{ github.base_ref }}:prompts/triage.txt > /tmp/before.txt
-      - uses: godwire/promptxray@v0.3.0
+      - uses: godwire/promptxray@v0.4.0
         with:
           command: diff
           before: /tmp/before.txt
@@ -215,7 +238,7 @@ chat, three classes, and a fourteen-block moderation prompt written the way
 prompts actually get written. Two of its rules are overbroad on purpose. Run
 the ablation and see whether the tool finds them before you do.
 
-See [examples/case-study/RUNBOOK.md](examples/case-study/RUNBOOK.md).
+See [examples/case-study/RUNBOOK.md](https://github.com/godwire/promptxray/blob/main/examples/case-study/RUNBOOK.md).
 
 No local setup at all: fork the repository, open **Actions → real model → Run
 workflow**, and GitHub runs the case study against an open model on its own
@@ -269,6 +292,7 @@ You never have to pay to use this tool. The first three cost nothing:
 | `gemini` | Google's Gemini models | free tier | `GEMINI_API_KEY` |
 | `openai` | OpenAI and compatible servers | paid | `OPENAI_API_KEY` |
 | `anthropic` | Claude | paid | `ANTHROPIC_API_KEY` |
+| `azure` | Azure OpenAI Service | paid | `AZURE_OPENAI_API_KEY` + `--base-url` |
 
 The free path, start to finish — install [Ollama](https://ollama.com), then:
 
@@ -281,6 +305,15 @@ promptxray ablate --prompt prompt.txt --data data.csv \
 
 Nothing leaves your machine and nothing is billed. Any OpenAI-compatible server
 works via `--base-url`.
+
+On Azure OpenAI, `--base-url` is your deployment's URL:
+
+```bash
+export AZURE_OPENAI_API_KEY=...
+promptxray run --prompt prompt.txt --data data.csv --provider azure \
+  --model gpt-4o-mini --api-version 2024-06-01 \
+  --base-url https://<resource>.openai.azure.com/openai/deployments/<deployment>
+```
 
 ## What it costs
 
@@ -315,11 +348,19 @@ cd promptxray
 pip install -e ".[dev]"
 pytest
 ruff check src tests
+mypy
 ```
 
 The test suite runs entirely on the mock provider, so it needs no network and
-no API key. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull
-request.
+no API key. See [CONTRIBUTING.md](https://github.com/godwire/promptxray/blob/main/CONTRIBUTING.md)
+before opening a pull request, and
+[CODE_OF_CONDUCT.md](https://github.com/godwire/promptxray/blob/main/CODE_OF_CONDUCT.md)
+for how we expect people to treat each other here. Found a security issue?
+See [SECURITY.md](https://github.com/godwire/promptxray/blob/main/SECURITY.md).
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=godwire/promptxray&type=Date)](https://star-history.com/#godwire/promptxray&Date)
 
 ## License
 

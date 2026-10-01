@@ -4,23 +4,30 @@ build-backend = "hatchling.build"
 
 [project]
 name = "promptxray"
-version = "0.3.0"
+dynamic = ["version"]
 description = "Find out which line of your prompt is causing your classifier's errors."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Heorhii Tolstoukhov" }]
-keywords = ["llm", "eval", "prompt", "classifier", "ablation", "explainability"]
+keywords = [
+  "llm", "eval", "llm-evaluation", "prompt", "prompt-engineering", "classifier",
+  "ablation", "explainability", "ollama", "openai", "anthropic", "gemini",
+]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Testing",
+  "Typing :: Typed",
 ]
 dependencies = []
 
@@ -29,12 +36,16 @@ dev = ["pytest>=7", "ruff>=0.5", "mypy>=1.10"]
 
 [project.urls]
 Homepage = "https://github.com/godwire/promptxray"
+Repository = "https://github.com/godwire/promptxray"
 Issues = "https://github.com/godwire/promptxray/issues"
 Changelog = "https://github.com/godwire/promptxray/blob/main/CHANGELOG.md"
 Demo = "https://godwire.github.io/promptxray/"
 
 [project.scripts]
 promptxray = "promptxray.cli:main"
+
+[tool.hatch.version]
+path = "src/promptxray/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/promptxray"]

@@ -20,10 +20,16 @@ inputs:
     description: CSV or JSONL file with labelled examples.
     required: true
   provider:
-    description: "mock, ollama, lmstudio, openrouter, groq, gemini, openai or anthropic. 'ollama' installs and starts Ollama on the runner, free."
+    description: "mock, ollama, lmstudio, openrouter, groq, gemini, openai, anthropic or azure. 'ollama' installs and starts Ollama on the runner, free."
     default: ollama
   model:
     description: "Model name, for example llama3.2 or qwen2.5:1.5b."
+    default: ""
+  base-url:
+    description: "Override the API base URL. Required for 'azure': your deployment's URL."
+    default: ""
+  api-version:
+    description: "API version, only used by provider 'azure'."
     default: ""
   fail-under:
     description: "For 'diff': fail the step if the new prompt's macro F1 is below this."
@@ -86,6 +92,8 @@ runs:
         PX_DATA: ${{ inputs.data }}
         PX_PROVIDER: ${{ inputs.provider }}
         PX_MODEL: ${{ inputs.model }}
+        PX_BASE_URL: ${{ inputs.base-url }}
+        PX_API_VERSION: ${{ inputs.api-version }}
         PX_FAIL_UNDER: ${{ inputs.fail-under }}
         PX_SUBSET: ${{ inputs.subset-size }}
         PX_WORKERS: ${{ inputs.workers }}
@@ -94,6 +102,8 @@ runs:
         set -o pipefail
         common=(--data "$PX_DATA" --provider "$PX_PROVIDER" --workers "$PX_WORKERS")
         if [ -n "$PX_MODEL" ]; then common+=(--model "$PX_MODEL"); fi
+        if [ -n "$PX_BASE_URL" ]; then common+=(--base-url "$PX_BASE_URL"); fi
+        if [ -n "$PX_API_VERSION" ]; then common+=(--api-version "$PX_API_VERSION"); fi
 
         case "$PX_COMMAND" in
           diff)

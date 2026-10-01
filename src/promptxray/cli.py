@@ -1,10 +1,12 @@
-"""Command line entry point: promptxray run | ablate | diff."""
+"""Command line entry point: promptxray demo | run | ablate | suggest | diff."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+import webbrowser
+from importlib import resources
 from pathlib import Path
 
 from . import __version__
@@ -24,8 +26,13 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default="mock-classifier", help="model name")
     parser.add_argument("--provider", default="mock",
                         choices=["mock", "ollama", "lmstudio", "openrouter", "groq",
-                                 "openai", "anthropic", "gemini", "local"])
-    parser.add_argument("--base-url", default=None, help="override the API base URL")
+                                 "openai", "anthropic", "gemini", "azure", "local"])
+    parser.add_argument("--base-url", default=None,
+                        help="override the API base URL (for --provider azure, your "
+                             "deployment URL: https://<resource>.openai.azure.com/"
+                             "openai/deployments/<deployment>)")
+    parser.add_argument("--api-version", default=None,
+                        help="API version, only used by --provider azure")
     parser.add_argument("--text-column", default="text")
     parser.add_argument("--label-column", default="label")
     parser.add_argument("--limit", type=int, default=0, help="use only the first N examples")
@@ -49,7 +56,7 @@ def cmd_run(args) -> int:
     blocks = blocks_mod.parse_blocks(prompt_text)
     blocks_mod.validate(blocks)
 
-    provider = build(args.provider, args.model, args.base_url)
+    provider = build(args.provider, args.model, args.base_url, args.api_version)
     cache = Cache(enabled=not args.no_cache)
     try:
         result = run(blocks_mod.render(blocks), examples, labels, provider, cache,
@@ -74,7 +81,7 @@ def cmd_ablate(args) -> int:
     blocks = blocks_mod.parse_blocks(prompt_text)
     blocks_mod.validate(blocks)
 
-    provider = build(args.provider, args.model, args.base_url)
+    provider = build(args.provider, args.model, args.base_url, args.api_version)
     cache = Cache(enabled=not args.no_cache)
     try:
         baseline = run(blocks_mod.render(blocks), examples, labels, provider, cache,
@@ -115,7 +122,7 @@ def cmd_diff(args) -> int:
     labels = dataset_mod.labels_of(examples)
     gold = {e.id: e.label for e in examples}
 
-    provider = build(args.provider, args.model, args.base_url)
+    provider = build(args.provider, args.model, args.base_url, args.api_version)
     cache = Cache(enabled=not args.no_cache)
     try:
         results = []
@@ -163,7 +170,7 @@ def cmd_suggest(args) -> int:
     blocks = blocks_mod.parse_blocks(prompt_text)
     blocks_mod.validate(blocks)
 
-    provider = build(args.provider, args.model, args.base_url)
+    provider = build(args.provider, args.model, args.base_url, args.api_version)
 
     holdout_size = round(len(examples) * args.holdout)
     evaluation_size = min(args.subset_size or len(examples), len(examples) - holdout_size)
@@ -233,6 +240,30 @@ def cmd_suggest(args) -> int:
     return 0
 
 
+def cmd_demo(args) -> int:
+    demo = resources.files("promptxray") / "demo"
+    with (resources.as_file(demo / "prompt.txt") as prompt,
+          resources.as_file(demo / "data.csv") as data):
+        ablate_args = _build_parser().parse_args([
+            "ablate", "--prompt", str(prompt), "--data", str(data),
+            "--provider", "mock", "--no-cache", "--report", args.report,
+        ])
+        # The real paths point into site-packages; the report shows short names.
+        ablate_args.display_prompt = "demo/prompt.txt"
+        ablate_args.display_data = "demo/data.csv"
+        print("promptxray demo: a small triage prompt, a labelled dataset and an offline "
+              "mock classifier. No API key, nothing leaves your machine.")
+        code = cmd_ablate(ablate_args)
+
+    print("\nOpen the report and hover the blocks. Then try your own prompt, free, "
+          "on a local model:\n"
+          "  promptxray ablate --prompt prompt.txt --data data.csv "
+          "--provider ollama --model llama3.2 --report report.html")
+    if code == 0 and not args.no_open and sys.stdout.isatty():
+        webbrowser.open(Path(args.report).resolve().as_uri())
+    return code
+
+
 def _describe(effect) -> str:
     if effect.verdict == "hurts the score":
         return f"was costing {effect.delta_macro_f1:+.3f} F1"
@@ -244,8 +275,8 @@ def _write_report(
 ) -> None:
     if args.report:
         html = render_report(
-            prompt_path=args.prompt,
-            data_path=args.data,
+            prompt_path=getattr(args, "display_prompt", None) or args.prompt,
+            data_path=getattr(args, "display_data", None) or args.data,
             model=provider.model,
             provider_name=provider.name,
             baseline=result,
@@ -287,13 +318,21 @@ def _write_report(
         print(f"json      {args.json_out}")
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="promptxray",
         description="Find out which line of your prompt is causing your classifier's errors.",
     )
     parser.add_argument("--version", action="version", version=f"promptxray {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_demo = sub.add_parser(
+        "demo", help="see it work in seconds: a built-in example, offline, no API key")
+    p_demo.add_argument("--report", default="promptxray-demo.html",
+                        help="where to write the HTML report")
+    p_demo.add_argument("--no-open", action="store_true",
+                        help="do not open the report in a browser")
+    p_demo.set_defaults(func=cmd_demo)
 
     p_run = sub.add_parser("run", help="score a prompt on a labelled dataset")
     p_run.add_argument("--prompt", required=True)
@@ -337,8 +376,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="exit with code 1 if the new prompt scores below this macro F1")
     _add_common(p_diff)
     p_diff.set_defaults(func=cmd_diff)
+    return parser
 
-    args = parser.parse_args(argv)
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
     try:
         return args.func(args)
     except (ProviderError, ValueError, FileNotFoundError) as exc:

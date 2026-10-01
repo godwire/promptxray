@@ -19,9 +19,12 @@ pip install -e ".[dev]"
 ```bash
 pytest -q
 ruff check src tests
+mypy
 ```
 
-Both must pass; CI runs the same two commands on Python 3.10 to 3.13.
+All three must pass; CI runs the same checks on Python 3.10 to 3.13. This
+project follows the [Code of Conduct](CODE_OF_CONDUCT.md) — please read it
+before participating.
 
 ## Ground rules
 
@@ -43,7 +46,16 @@ make a fix much faster.
 
 ## Releasing (maintainers)
 
-1. Update `CHANGELOG.md` and the version in `pyproject.toml` and
-   `src/promptxray/__init__.py`.
-2. Commit, then tag: `git tag v0.X.Y && git push --tags`.
-3. The `publish` workflow builds the package and uploads it to PyPI.
+1. Move the `CHANGELOG.md` entries under a `## [0.X.Y] - YYYY-MM-DD` heading
+   and set `__version__` in `src/promptxray/__init__.py` (the only place the
+   version lives).
+2. Commit, push, wait for CI to go green, then tag:
+   `git tag v0.X.Y && git push origin v0.X.Y`.
+3. The `publish` workflow runs the tests, checks the tag matches
+   `__version__`, uploads to PyPI, and creates the GitHub release with that
+   version's changelog section as its notes.
+
+One-time setup, before the very first release: on PyPI, add a trusted
+publisher at <https://pypi.org/manage/account/publishing/> with project
+`promptxray`, owner `godwire`, repository `promptxray`, workflow
+`publish.yml` and environment `pypi`.

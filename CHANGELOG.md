@@ -4,22 +4,38 @@ All notable changes to this project are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-01
+
+The first release published to PyPI, and the first tagged version of the
+GitHub Action (`uses: godwire/promptxray@v0.4.0`). Versions 0.1.0 to 0.3.0
+were development milestones and were never published.
 
 ### Added
+- `promptxray demo`: runs the bundled example end to end, offline, with no API
+  key and no files of your own, and opens the report. The fastest way to see
+  what the tool does straight after `pip install`.
 - `--provider gemini` for Google's Generative Language API (`GEMINI_API_KEY`),
   another free-tier option alongside Ollama, OpenRouter and Groq.
-- `py.typed` marker: the package now ships type information for consumers who
-  import it as a library.
-- `mypy` runs in CI alongside `ruff` and `pytest`.
-- Unit tests for the network providers (OpenAI-compatible, Anthropic, Gemini),
-  including retry-on-rate-limit behaviour, with `urlopen` stubbed so they need
-  no network and no API key.
+- `--provider azure` for Azure OpenAI Service, with `--base-url` and
+  `--api-version`. Both are also inputs on the GitHub Action.
+- `py.typed` marker: the package ships type information for anyone importing
+  it as a library.
+- Tagging a release now also creates the GitHub release, with this changelog's
+  section as its notes. The publish workflow runs the test suite first.
+- `mypy` in CI, and unit tests for the network providers (OpenAI-compatible,
+  Anthropic, Gemini, Azure) including retry-on-rate-limit, with `urlopen`
+  stubbed so they need no network and no API key.
+- `CODE_OF_CONDUCT.md` and `SECURITY.md`.
 
-## [0.3.0] - 2026-09-19
+### Changed
+- Development status is now Beta.
+- The version is defined once, in `src/promptxray/__init__.py`.
 
-First release published to PyPI. Versions 0.1.0 and 0.2.0 were development
-milestones and were never tagged.
+### Fixed
+- The quick start no longer depends on files that only exist in a git clone;
+  it uses `promptxray demo`.
+
+## 0.3.0 - 2026-09-19
 
 ### Added
 - `suggest` now removes blocks one at a time and re-measures after each
@@ -31,9 +47,9 @@ milestones and were never tagged.
   million calls, and the saving in dollars with `--price-per-mtok`.
 - `suggest --max-steps` to cap the greedy search; the worst-case number of
   model calls is printed before a run starts, and the real number after it.
-- A GitHub Action (`uses: godwire/promptxray@v0.3.0`) that runs `diff` or
-  `ablate` in CI, installs Ollama on the runner for a free open model, writes
-  the result to the job summary and uploads the HTML report.
+- A GitHub Action that runs `diff` or `ablate` in CI, installs Ollama on the
+  runner for a free open model, writes the result to the job summary and
+  uploads the HTML report.
 - A manual `real model` workflow that runs the case study against an open
   model on GitHub's machines.
 - A live demo report on GitHub Pages.
@@ -71,4 +87,4 @@ milestones and were never tagged.
   explanations built from measured results.
 - SQLite answer cache, built-in mock provider, zero runtime dependencies.
 
-[0.3.0]: https://github.com/godwire/promptxray/releases/tag/v0.3.0
+[0.4.0]: https://github.com/godwire/promptxray/releases/tag/v0.4.0

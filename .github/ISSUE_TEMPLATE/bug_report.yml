@@ -28,13 +28,13 @@ body:
     id: versions
     attributes:
       label: Versions
-      placeholder: "promptxray 0.3.0, Python 3.12, Windows 11"
+      placeholder: "promptxray 0.4.0, Python 3.12, Windows 11"
     validations:
       required: true
   - type: dropdown
     id: provider
     attributes:
       label: Provider
-      options: [mock, ollama, lmstudio, openrouter, groq, gemini, openai, anthropic, other]
+      options: [mock, ollama, lmstudio, openrouter, groq, gemini, openai, anthropic, azure, other]
     validations:
       required: true

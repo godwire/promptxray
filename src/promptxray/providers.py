@@ -1,6 +1,6 @@
 """Talk to a model.
 
-Four backends, all over the standard library so the package has no runtime
+Five backends, all over the standard library so the package has no runtime
 dependencies:
 
   mock      - no network, no key. Answers with a tiny keyword rule so the whole
@@ -9,6 +9,7 @@ dependencies:
               Ollama, OpenRouter, Groq, vLLM, LM Studio.
   anthropic - the Anthropic messages API.
   gemini    - Google's Generative Language API.
+  azure     - Azure OpenAI Service (its own auth header and URL shape).
 """
 
 from __future__ import annotations
@@ -175,6 +176,50 @@ class GeminiProvider(Provider):
         )
 
 
+class AzureOpenAIProvider(Provider):
+    """Azure OpenAI Service.
+
+    Same chat-completion payload as the OpenAI API, but its own auth header
+    (`api-key`, not `Authorization: Bearer`) and its own URL shape, keyed by
+    deployment name rather than model name.
+    """
+
+    name = "azure"
+
+    def __init__(self, model: str, base_url: str | None = None, api_key: str | None = None,
+                 api_version: str = "2024-06-01", **kw):
+        super().__init__(model, **kw)
+        self.base_url = (base_url or os.getenv("AZURE_OPENAI_ENDPOINT") or "").rstrip("/")
+        self.api_version = api_version
+        self.api_key = api_key or os.getenv("AZURE_OPENAI_API_KEY", "")
+        if not self.base_url:
+            raise ProviderError(
+                "Set --base-url (or AZURE_OPENAI_ENDPOINT) to your deployment's URL, e.g. "
+                "https://<resource>.openai.azure.com/openai/deployments/<deployment>"
+            )
+        if not self.api_key:
+            raise ProviderError("Set AZURE_OPENAI_API_KEY before using --provider azure.")
+
+    def complete(self, prompt: str) -> Answer:
+        payload = {
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": self.temperature,
+            "max_tokens": 32,
+        }
+        url = f"{self.base_url}/chat/completions?api-version={self.api_version}"
+        data = _post(url, payload, {"api-key": self.api_key}, self.timeout)
+        try:
+            text = data["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError) as exc:
+            raise ProviderError(f"Unexpected response shape: {json.dumps(data)[:400]}") from exc
+        usage = data.get("usage") or {}
+        return Answer(
+            text=text.strip(),
+            input_tokens=usage.get("prompt_tokens", 0),
+            output_tokens=usage.get("completion_tokens", 0),
+        )
+
+
 class AnthropicProvider(Provider):
     """The Anthropic messages API."""
 
@@ -232,7 +277,8 @@ def _post(url: str, payload: dict, headers: dict, timeout: int, retries: int = 3
     raise ProviderError(last_error)
 
 
-def build(provider: str, model: str, base_url: str | None = None) -> Provider:
+def build(provider: str, model: str, base_url: str | None = None,
+          api_version: str | None = None) -> Provider:
     """Create a provider from the --provider flag."""
     provider = provider.lower()
     if provider == "mock":
@@ -244,4 +290,7 @@ def build(provider: str, model: str, base_url: str | None = None) -> Provider:
         return AnthropicProvider(model)
     if provider == "gemini":
         return GeminiProvider(model)
+    if provider == "azure":
+        kw = {"api_version": api_version} if api_version else {}
+        return AzureOpenAIProvider(model, base_url=base_url, **kw)
     raise ProviderError(f"Unknown provider: {provider}")

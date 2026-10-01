@@ -1,8 +1,10 @@
 name: publish
 
-# Publishes to PyPI when you push a version tag, e.g. `git tag v0.2.0 && git push --tags`.
-# Set up trusted publishing once at https://pypi.org/manage/account/publishing/
-# so no API token has to live in the repository secrets.
+# Publishes to PyPI when you push a version tag, e.g.
+# `git tag v0.4.0 && git push origin v0.4.0`, then creates the GitHub release
+# with that version's CHANGELOG section as its notes.
+# Trusted publishing is set up once on PyPI (see CONTRIBUTING.md), so no API
+# token has to live in the repository secrets.
 
 on:
   push:
@@ -19,6 +21,34 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install build
+      - run: pip install build pytest
+      # A version number can only ever be uploaded to PyPI once, so a broken
+      # or mislabelled upload is permanent. Check before, not after.
+      - run: pytest -q
+      - name: Tag must match the package version
+        run: |
+          version=$(python -c "import sys; sys.path.insert(0, 'src'); import promptxray; print(promptxray.__version__)")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match __version__ = $version in src/promptxray/__init__.py"
+            exit 1
+          fi
       - run: python -m build
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" 'index($0, "## [" v "]") == 1 {found=1; next}
+                               found && /^## / {exit}
+                               found {print}' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md --verify-tag

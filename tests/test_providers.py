@@ -121,6 +121,47 @@ def test_gemini_parses_candidates_and_sends_key_as_header(monkeypatch):
     assert seen["key_header"] == "gm-test"
 
 
+def test_azure_builds_url_with_deployment_and_api_version(monkeypatch):
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "az-test")
+    seen = {}
+
+    def responder(request):
+        seen["url"] = request.full_url
+        seen["key_header"] = request.headers.get("Api-key")
+        return {
+            "choices": [{"message": {"content": "urgent"}}],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 1},
+        }
+
+    _stub_urlopen(monkeypatch, responder)
+    provider = providers.build(
+        "azure", "gpt-4o-mini",
+        base_url="https://my-resource.openai.azure.com/openai/deployments/my-deployment",
+        api_version="2024-06-01",
+    )
+    answer = provider.complete("classify this")
+
+    assert answer.text == "urgent"
+    assert seen["key_header"] == "az-test"
+    assert seen["url"] == (
+        "https://my-resource.openai.azure.com/openai/deployments/my-deployment"
+        "/chat/completions?api-version=2024-06-01"
+    )
+
+
+def test_azure_missing_base_url_raises_clear_error(monkeypatch):
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "az-test")
+    with pytest.raises(providers.ProviderError, match="base-url"):
+        providers.build("azure", "gpt-4o-mini")
+
+
+def test_azure_missing_key_raises_clear_error(monkeypatch):
+    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    with pytest.raises(providers.ProviderError, match="AZURE_OPENAI_API_KEY"):
+        providers.build("azure", "gpt-4o-mini", base_url="https://x.openai.azure.com/openai/deployments/d")
+
+
 def test_gemini_missing_key_raises_clear_error(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
